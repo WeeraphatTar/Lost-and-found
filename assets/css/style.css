@@ -1,0 +1,45 @@
+/* 
+  Style Guide:
+  - We have migrated to Tailwind CSS.
+  - Most layout and utility classes are now handled directly in the HTML via Tailwind CDN.
+  - Use this file ONLY for custom CSS that cannot be easily achieved with Tailwind utility classes,
+    such as complex animations, custom scrollbars, or third-party library overrides.
+*/
+
+/* Custom scrollbar for WebKit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; 
+}
+
+/* 
+  Form Custom Styling:
+  Emphasis for Important Notes and Asterisks
+*/
+.text-important {
+  color: #dc2626 !important;
+}
+
+/* สำหรับดอกจัน * โดยเฉพาะ */
+.asterisk {
+  color: #ef4444 !important; /* บังคับให้เป็นสีแดงสว่าง */
+  margin-left: 4px;
+  font-size: 1.1em;
+}
+
+/* ป้องกันการทับซ้อนจาก Tailwind */
+label .asterisk {
+  color: #ef4444 !important;
+}

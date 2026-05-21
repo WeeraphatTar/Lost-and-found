@@ -49,13 +49,16 @@ $nav_items = [
 // Notification logic
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/notification_helper.php';
+require_once __DIR__ . '/messaging_helper.php';
 
 $unread_count = 0;
 $unread_notifications = [];
+$unread_msg_count = 0;
 
 if (isset($_SESSION['user_id'])) {
     $unread_count = get_unread_count($pdo, $_SESSION['user_id']);
     $unread_notifications = get_unread_notifications($pdo, $_SESSION['user_id'], 5);
+    $unread_msg_count = get_unread_message_count($pdo, $_SESSION['user_id']);
 }
 ?>
 <!DOCTYPE html>
@@ -121,6 +124,21 @@ if (isset($_SESSION['user_id'])) {
                 <div class="hidden md:flex ml-auto items-center space-x-5">
                     <?php if (isset($_SESSION['user_id'])): ?>
                         
+                        <!-- Messaging Icon (Desktop) -->
+                        <div class="relative">
+                            <a href="<?php echo $base_url; ?>/pages/messages.php" class="relative inline-flex items-center p-2 text-gray-400 hover:text-white transition focus:outline-none">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                                </svg>
+                                <?php if ($unread_msg_count > 0): ?>
+                                    <span class="absolute top-1 right-1 flex h-4 w-4">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] text-white items-center justify-center font-bold"><?php echo $unread_msg_count; ?></span>
+                                    </span>
+                                <?php endif; ?>
+                            </a>
+                        </div>
+
                         <!-- Notification Bell (Desktop) -->
                         <div class="relative" id="notification-wrapper">
                             <button id="notification-btn" class="relative p-2 text-gray-400 hover:text-white transition focus:outline-none">
@@ -182,7 +200,7 @@ if (isset($_SESSION['user_id'])) {
                                 <div class="py-1">
                                     <a href="<?php echo $base_url; ?>/pages/dashboard.php" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-accent transition">
                                         <svg class="w-4 h-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                        จัดการประกาศ
+                                        รายการของฉัน
                                     </a>
                                     <a href="<?php echo $base_url; ?>/pages/profile.php" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-accent transition">
                                         <svg class="w-4 h-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
@@ -241,6 +259,12 @@ if (isset($_SESSION['user_id'])) {
                         $dash_mobile_active = ($current_page == 'dashboard.php') ? 'text-white bg-secondary border-l-4 border-accent font-bold' : 'text-gray-400 hover:text-white hover:bg-secondary';
                         ?>
                         <a href="<?php echo $base_url; ?>/pages/dashboard.php" class="block px-4 py-3 rounded-md text-base transition <?php echo $dash_mobile_active; ?>">จัดการประกาศ</a>
+                        <a href="<?php echo $base_url; ?>/pages/messages.php" class="block px-4 py-3 rounded-md text-base text-gray-400 hover:text-white hover:bg-secondary transition flex justify-between items-center">
+                            <span>ข้อความ</span>
+                            <?php if ($unread_msg_count > 0): ?>
+                                <span class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full"><?php echo $unread_msg_count; ?></span>
+                            <?php endif; ?>
+                        </a>
                         <a href="<?php echo $base_url; ?>/actions/auth_action.php?action=logout" onclick="return confirm('คุณต้องการออกจากระบบใช่หรือไม่?');" class="block w-full text-center px-4 py-3 border border-red-400/50 text-red-400 rounded-md hover:bg-red-500 hover:text-white transition mt-4">ออกจากระบบ</a>
                     <?php else: ?>
                         <div class="grid grid-cols-2 gap-3 px-2">

@@ -13,8 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user_id = $_SESSION['user_id'];
     $item_id = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     
-    // Ownership check
-    $check_sql = "SELECT id, image_path, type FROM items WHERE id = ? AND user_id = ?";
+    // Ownership check including image_labels
+    $check_sql = "SELECT id, image_path, image_labels, type FROM items WHERE id = ? AND user_id = ?";
     $check_stmt = $pdo->prepare($check_sql);
     $check_stmt->execute([$item_id, $user_id]);
     $existing_item = $check_stmt->fetch();
@@ -49,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Handle Image Upload
     $image_path = $existing_item['image_path']; // Keep existing by default
+    $image_labels = $existing_item['image_labels']; // Keep existing by default
     
     if (isset($_FILES['item_image']) && $_FILES['item_image']['error'] === UPLOAD_ERR_OK) {
         $allowed_types = ['image/jpeg', 'image/png', 'image/webp'];
@@ -71,6 +72,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     unlink('../' . $existing_item['image_path']);
                 }
                 $image_path = 'uploads/items/' . $new_filename;
+                
+                // Detect labels for new image using Google Cloud Vision API
+                require_once '../includes/vision_helper.php';
+                $labels = detect_labels($destination);
+                if (!empty($labels)) {
+                    $image_labels = json_encode($labels, JSON_UNESCAPED_UNICODE);
+                } else {
+                    $image_labels = null;
+                }
             } else {
                 $_SESSION['error'] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพใหม่";
                 header("Location: ../pages/edit_item.php?id=$item_id");
@@ -94,14 +104,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 storage_location = ?, 
                 event_date = ?, 
                 contact_phone = ?, 
-                image_path = ?
+                image_path = ?,
+                image_labels = ?
                 WHERE id = ? AND user_id = ?";
         
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             $title, $category, $description, $secret_description, 
             $serial_number, $location, $storage_location, $event_date, 
-            $contact_phone, $image_path, $item_id, $user_id
+            $contact_phone, $image_path, $image_labels, $item_id, $user_id
         ]);
 
         $_SESSION['success'] = "อัปเดตประกาศของคุณเรียบร้อยแล้ว!";

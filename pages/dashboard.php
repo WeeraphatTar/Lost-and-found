@@ -28,7 +28,7 @@ try {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div class="flex justify-between items-center mb-8">
-            <h1 class="text-2xl sm:text-3xl font-bold text-primary">จัดการประกาศส่วนตัว</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-primary">รายการประกาศของฉัน</h1>
             <div class="space-x-2">
                 <a href="<?php echo $base_url; ?>/pages/report_lost.php" class="px-4 py-2 bg-primary text-white text-sm font-medium rounded hover:bg-secondary transition shadow-sm hidden sm:inline-block">แจ้งของหาย</a>
                 <a href="<?php echo $base_url; ?>/pages/report_found.php" class="px-4 py-2 border border-primary text-primary text-sm font-medium rounded hover:bg-primary hover:text-white transition bg-white hidden sm:inline-block">แจ้งพบของ</a>

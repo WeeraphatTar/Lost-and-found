@@ -2,6 +2,7 @@
 $base_url = 'http://localhost/Lost_found';
 require_once '../includes/header.php';
 require_once '../config/database.php';
+require_once '../includes/matching_helper.php';
 
 // รับค่า ID จาก URL
 $item_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -113,7 +114,11 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                             <?php echo htmlspecialchars($item['location']); ?>
                         </div>
                     </div>
-                    <?php if ($item['type'] === 'found' && !empty($item['storage_location'])): ?>
+                    <?php 
+                    $is_owner = (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']);
+                    $is_admin = (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin');
+                    if ($item['type'] === 'found' && !empty($item['storage_location']) && ($is_owner || $is_admin)): 
+                    ?>
                         <div class="bg-green-50 p-4 rounded-md border border-green-100 sm:col-span-2">
                             <div class="text-xs text-green-600 mb-1">สถานที่เก็บรักษาของในปัจจุบัน (เฉพาะผู้พบของ)</div>
                             <div class="font-medium text-green-800">
@@ -128,7 +133,7 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                     <div class="text-gray-700 leading-relaxed whitespace-pre-wrap"><?php echo htmlspecialchars($item['description']); ?></div>
                 </div>
 
-                <?php if (!empty($item['serial_number'])): ?>
+                <?php if (!empty($item['serial_number']) && isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
                 <div class="mb-8">
                     <h3 class="text-lg font-bold text-primary mb-3">เลขซีเรียล / ข้อมูลระบุตัวตน</h3>
                     <div class="text-gray-700 bg-gray-100 px-4 py-2 rounded inline-block font-mono"><?php echo htmlspecialchars($item['serial_number']); ?></div>
@@ -154,12 +159,17 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                             </a>
                         <?php endif; ?>
 
-                        <!-- ในอนาคตสามารถเพิ่มปุ่มส่งข้อความ (Chat) ตรงนี้ได้ -->
+                        <!-- ปุ่มส่งข้อความ (Chat) -->
                         <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $item['user_id']): ?>
-                            <button class="ml-auto px-4 py-2 bg-accent text-white font-medium rounded hover:bg-blue-600 transition shadow-sm flex items-center whitespace-nowrap">
+                            <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $item['id']; ?>&receiver_id=<?php echo $item['user_id']; ?>" class="ml-auto px-4 py-2 bg-accent text-white font-medium rounded hover:bg-blue-600 transition shadow-sm flex items-center whitespace-nowrap">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                                ส่งข้อความ (เร็วๆนี้)
-                            </button>
+                                ส่งข้อความ
+                            </a>
+                        <?php elseif (!isset($_SESSION['user_id'])): ?>
+                            <a href="<?php echo $base_url; ?>/pages/login.php" class="ml-auto px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded hover:bg-gray-300 transition shadow-sm flex items-center whitespace-nowrap">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                เข้าสู่ระบบเพื่อส่งข้อความ
+                            </a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -170,13 +180,72 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
         <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
             <?php
             $target_type = ($item['type'] === 'lost') ? 'found' : 'lost';
-            // หาโพสต์ที่อาจจะตรงกัน (ประเภทตรงข้าม, หมวดหมู่เดียวกัน, สถานะเปิดอยู่)
-            $match_sql = "SELECT * FROM items WHERE type = ? AND category = ? AND status = 'open' AND id != ? ORDER BY created_at DESC LIMIT 3";
-            $match_stmt = $pdo->prepare($match_sql);
-            $match_stmt->execute([$target_type, $item['category'], $item['id']]);
-            $matches = $match_stmt->fetchAll();
             
-            if (count($matches) > 0):
+            // 1. Pre-extract SN from current item (even if not in serial_number field)
+            $raw_sn = $item['serial_number'];
+            if (empty($raw_sn)) {
+                $text_for_sn = $item['title'] . ' ' . $item['description'] . ' ' . $item['secret_description'];
+                if (preg_match('/(?:s\/?n|serial|no|id):?\s*([a-z0-9\-\/\.]+)/i', $text_for_sn, $matches)) {
+                    $raw_sn = $matches[1];
+                }
+            }
+            $searchable_sn = get_clean_sn_for_sql($raw_sn);
+
+            // 2. Extract multiple tags for broader SQL search
+            $normalized_title = normalize_text($item['title']);
+            $standardized_title = apply_synonyms($normalized_title);
+            $title_kws = preg_split('/\s+/', $standardized_title, -1, PREG_SPLIT_NO_EMPTY);
+            
+            $search_tag1 = !empty($title_kws[0]) ? "%" . mb_substr($title_kws[0], 0, 4) . "%" : "%NON_EXISTENT%";
+            $search_tag2 = !empty($title_kws[1]) ? "%" . mb_substr($title_kws[1], 0, 4) . "%" : $search_tag1;
+            // Also keep original first word as a fallback
+            $orig_kws = preg_split('/\s+/', $normalized_title, -1, PREG_SPLIT_NO_EMPTY);
+            $search_tag3 = !empty($orig_kws[0]) ? "%" . mb_substr($orig_kws[0], 0, 4) . "%" : $search_tag1;
+
+            // ใช้ Logic ที่กว้างขึ้นในการดึงข้อมูลมาคำนวณ Smart Match
+            $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, event_date, image_path, image_labels 
+                          FROM items 
+                          WHERE type = ? AND status = 'open' AND user_id != ? 
+                          AND (category = ? 
+                               OR (serial_number IS NOT NULL AND (serial_number LIKE ? OR serial_number = ?)) 
+                               OR title LIKE ? OR title LIKE ? OR title LIKE ?
+                               OR description LIKE ? OR description LIKE ?
+                               OR secret_description LIKE ? OR secret_description LIKE ?
+                               OR location LIKE ?)
+                          ORDER BY created_at DESC LIMIT 50";
+            
+            $search_loc = "%" . mb_substr(normalize_text($item['location']), 0, 4) . "%";
+            $search_sn_like = "%" . ($searchable_sn ?? 'NON_EXISTENT_SN') . "%";
+            
+            $match_stmt = $pdo->prepare($match_sql);
+            $match_stmt->execute([
+                $target_type, $_SESSION['user_id'], $item['category'], 
+                $search_sn_like, $item['serial_number'], 
+                $search_tag1, $search_tag2, $search_tag3,
+                $search_tag1, $search_tag2, 
+                $search_tag1, $search_sn_like,
+                $search_loc
+            ]);
+            $potential_matches = $match_stmt->fetchAll();
+
+            $smart_matches = [];
+            foreach ($potential_matches as $m) {
+                $score = calculate_match_score($item, $m);
+                if ($score >= 40) {
+                    $m['match_score'] = $score;
+                    $m['confidence_level'] = get_confidence_level($score);
+                    $smart_matches[] = $m;
+                }
+            }
+
+            // เรียงลำดับตามคะแนน
+            usort($smart_matches, function($a, $b) {
+                return $b['match_score'] <=> $a['match_score'];
+            });
+            
+            $smart_matches = array_slice($smart_matches, 0, 3);
+            
+            if (count($smart_matches) > 0):
             ?>
             <div class="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 md:p-8 border border-blue-100 shadow-sm relative overflow-hidden">
                 <!-- Decorative icon -->
@@ -188,21 +257,25 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                     </div>
                     <div>
                         <h2 class="text-xl font-bold text-primary">ระบบช่วยจับคู่อัจฉริยะ (Smart Matches)</h2>
-                        <p class="text-sm text-gray-500">เราพบ <?php echo count($matches); ?> รายการที่อาจจะเป็นสิ่งของที่คุณกำลัง<?php echo ($item['type'] === 'lost') ? 'ตามหา' : 'ตามหาเจ้าของ'; ?></p>
+                        <p class="text-sm text-gray-500">เราพบ <?php echo count($smart_matches); ?> รายการที่อาจจะเป็นสิ่งของที่คุณกำลัง<?php echo ($item['type'] === 'lost') ? 'ตามหา' : 'ตามหาเจ้าของ'; ?></p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 relative z-10">
-                    <?php foreach ($matches as $match): ?>
+                    <?php foreach ($smart_matches as $match): ?>
                         <?php
-                        // คำนวณความแม่นยำคร่าวๆ (ถ้าสถานที่มีคำคล้ายกัน ถือว่าแม่นยำสูง)
-                        $confidence = 'ปานกลาง';
-                        $conf_color = 'bg-yellow-100 text-yellow-700 border-yellow-200';
+                        $conf = $match['confidence_level'];
+                        $score = $match['match_score'];
                         
-                        // สมมติฐานแบบง่าย: ถ้าข้อความสถานที่เหมือนกันบางส่วน
-                        if (mb_stripos($item['location'], $match['location']) !== false || mb_stripos($match['location'], $item['location']) !== false) {
-                            $confidence = 'สูง';
+                        $conf_text = 'ต่ำ';
+                        $conf_color = 'bg-gray-100 text-gray-700 border-gray-200';
+                        
+                        if ($conf === 'High') {
+                            $conf_text = 'สูงมาก';
                             $conf_color = 'bg-green-100 text-green-700 border-green-200';
+                        } elseif ($conf === 'Medium') {
+                            $conf_text = 'ปานกลาง';
+                            $conf_color = 'bg-yellow-100 text-yellow-700 border-yellow-200';
                         }
                         
                         $match_img = !empty($match['image_path']) ? $base_url . '/' . htmlspecialchars($match['image_path']) : '';
@@ -211,7 +284,7 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                         <a href="<?php echo $base_url; ?>/pages/item_detail.php?id=<?php echo $match['id']; ?>" class="bg-white rounded-lg p-4 border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group flex flex-col h-full relative">
                             <div class="flex justify-between items-start mb-3">
                                 <span class="text-xs font-semibold px-2 py-1 rounded border <?php echo $conf_color; ?>">
-                                    โอกาสตรงกัน: <?php echo $confidence; ?>
+                                    ความแม่นยำ: <?php echo $conf_text; ?> (<?php echo $score; ?>%)
                                 </span>
                                 <span class="text-xs text-gray-400"><?php echo $match_date; ?></span>
                             </div>

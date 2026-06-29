@@ -49,14 +49,21 @@ CREATE TABLE IF NOT EXISTS `items` (
   `type` enum('lost','found') NOT NULL,
   `title` varchar(255) NOT NULL,
   `category` varchar(100) NOT NULL,
+  `brand` varchar(100) DEFAULT NULL,
+  `model` varchar(100) DEFAULT NULL,
+  `color` varchar(100) DEFAULT NULL,
   `description` text NOT NULL,
   `secret_description` text DEFAULT NULL,
   `serial_number` varchar(100) DEFAULT NULL,
-  `location` varchar(255) NOT NULL,
-  `storage_location` varchar(255) DEFAULT NULL,
+  `location` text NOT NULL,
+  `province` varchar(100) DEFAULT NULL,
+  `district` varchar(100) DEFAULT NULL,
+  `location_detail` text DEFAULT NULL,
+  `storage_location` text DEFAULT NULL,
   `event_date` date NOT NULL,
   `contact_phone` varchar(20) NOT NULL,
   `image_path` varchar(255) DEFAULT NULL,
+  `image_labels` text DEFAULT NULL,
   `status` enum('open','pending','resolved','closed') NOT NULL DEFAULT 'open',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -64,6 +71,7 @@ CREATE TABLE IF NOT EXISTS `items` (
   KEY `user_id` (`user_id`),
   CONSTRAINT `items_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- --------------------------------------------------------
 

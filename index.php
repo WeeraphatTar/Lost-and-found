@@ -6,26 +6,28 @@ require_once 'includes/header.php';
 <!-- Hero Section -->
 <section class="bg-white py-16 text-center border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold text-primary mb-4">ระบบแจ้งของหายและติดตามทรัพย์สินคืน</h1>
+        <h1 class="text-3xl md:text-4xl lg:text-[42px] font-bold text-primary mb-4">ระบบแจ้งของหายและติดตามทรัพย์สินคืน</h1>
         <p class="text-gray-500 text-lg md:text-xl max-w-2xl mx-auto mb-8">พื้นที่ส่วนกลางที่ปลอดภัยและเชื่อถือได้ สำหรับการค้นหาของที่หายไป และส่งคืนของที่พบเจอให้กับเจ้าของตัวจริง</p>
         
         <!-- Search Bar -->
         <form action="<?php echo $base_url; ?>/pages/browse.php" method="GET" class="max-w-3xl mx-auto flex flex-col md:flex-row gap-3 mb-8">
-            <input type="text" name="q" class="flex-1 w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent" placeholder="ค้นหาทรัพย์สิน เช่น กระเป๋าสตางค์, โทรศัพท์...">
-            <select name="category" class="w-full md:w-1/3 px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white">
-                <option value="">ทุกหมวดหมู่</option>
-                <option value="electronics">อุปกรณ์อิเล็กทรอนิกส์</option>
-                <option value="walletandcash">กระเป๋าสตางค์และเงินสด</option>
-                <option value="cardanddocument">บัตรและเอกสารสำคัญ</option>
-                <option value="keyandkeycard">กุญแจและคีย์การ์ด</option>
-                <option value="bagandluggage">กระเป๋าและสัมภาระ</option>
-                <option value="clothingandjewelry">เครื่องแต่งกายและเครื่องประดับ</option>
-                <option value="studymaterialandstationery">อุปกรณ์การเรียนและเครื่องเขียน</option>
-                <option value="personalbelonging">ของใช้ส่วนตัว</option>
-                <option value="vehicleandaccessory">ยานพาหนะและอุปกรณ์เสริม</option>
-                <option value="others">อื่นๆ</option>
-            </select>
-            <button type="submit" class="w-full md:w-auto px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-secondary transition shadow-sm">ค้นหา</button>
+            <input type="text" name="q" class="flex-1 w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all placeholder-gray-500" placeholder="ค้นหาทรัพย์สิน เช่น กระเป๋าสตางค์, โทรศัพท์...">
+            <div class="w-full md:w-1/3 relative text-left">
+                <select id="category" name="category" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all">
+                    <option value="">ทุกหมวดหมู่</option>
+                    <option value="electronics">อุปกรณ์อิเล็กทรอนิกส์</option>
+                    <option value="walletandcash">กระเป๋าสตางค์และเงินสด</option>
+                    <option value="cardanddocument">บัตรและเอกสารสำคัญ</option>
+                    <option value="keyandkeycard">กุญแจและคีย์การ์ด</option>
+                    <option value="bagandluggage">กระเป๋าและสัมภาระ</option>
+                    <option value="clothingandjewelry">เครื่องแต่งกายและเครื่องประดับ</option>
+                    <option value="studymaterialandstationery">อุปกรณ์การเรียนและเครื่องเขียน</option>
+                    <option value="personalbelonging">ของใช้ส่วนตัว</option>
+                    <option value="vehicleandaccessory">ยานพาหนะและอุปกรณ์เสริม</option>
+                    <option value="others">อื่นๆ</option>
+                </select>
+            </div>
+            <button type="submit" class="w-full md:w-auto px-8 py-3 bg-primary text-white font-medium rounded-xl hover:bg-secondary transition shadow-md hover:shadow-lg">ค้นหา</button>
         </form>
 
         <!-- Call to Action Buttons -->
@@ -97,6 +99,75 @@ require_once 'includes/header.php';
         ?>
     </div>
 </section>
+
+<!-- Load jQuery and Select2 -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<style>
+    /* Styling Select2 to match tailwind custom input styles */
+    .select2-container {
+        width: 100% !important;
+        display: block !important;
+    }
+    .select2-container--default .select2-selection--single {
+        background-color: #ffffff !important;
+        border: 1px solid #D1D5DB !important;
+        border-radius: 0.75rem !important; /* rounded-xl */
+        height: auto !important;
+        padding: 0.75rem 1rem !important; /* py-3 px-4 */
+        transition: all 0.2s;
+    }
+    .select2-container--default.select2-container--focus .select2-selection--single,
+    .select2-container--default .select2-selection--single:focus {
+        border-color: #3b82f6 !important; /* accent */
+        box-shadow: 0 0 0 1px #3b82f6 !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        color: #1F2937 !important;
+        line-height: 1.5 !important;
+        padding-left: 0 !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__placeholder {
+        color: #4B5563 !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 100% !important;
+        top: 0 !important;
+        right: 0.75rem !important;
+    }
+    /* Dropdown container */
+    .select2-dropdown {
+        border: 1px solid #E5E7EB !important;
+        border-radius: 0.75rem !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+        overflow: hidden;
+        z-index: 9999 !important;
+    }
+    /* Force dropdown downwards and limit height */
+    .select2-container--open .select2-dropdown {
+        top: 100% !important;
+        margin-top: 4px !important;
+    }
+    .select2-results__options {
+        max-height: 250px !important; /* Show ~10 items with scroll */
+    }
+    .select2-container--default .select2-results__option--highlighted[aria-selected] {
+        background-color: #3b82f6 !important; /* accent */
+    }
+</style>
+
+<script>
+    $(document).ready(function() {
+        $('#category').select2({
+            placeholder: 'ทุกหมวดหมู่',
+            allowClear: true,
+            minimumResultsForSearch: -1,
+            dropdownParent: $('#category').parent()
+        });
+    });
+</script>
 
 <?php
 // เรียกใช้งาน Footer

@@ -22,21 +22,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $title = trim($_POST['item_name'] ?? '');
     $category = trim($_POST['category'] ?? '');
+    $brand = trim($_POST['brand'] ?? null);
+    $model = trim($_POST['model'] ?? null);
+    $color = trim($_POST['color'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $secret_description = trim($_POST['secret_description'] ?? null);
     $serial_number = trim($_POST['serial_number'] ?? null);
-    $location = trim($_POST['location'] ?? '');
+    $province = trim($_POST['province'] ?? '');
+    $district = trim($_POST['district'] ?? '');
+    $location_detail = trim($_POST['location_detail'] ?? '');
     $storage_location = trim($_POST['storage_location'] ?? null);
     $event_date = ($type === 'lost') ? ($_POST['lost_date'] ?? '') : ($_POST['found_date'] ?? '');
     $contact_phone = trim($_POST['contact_phone'] ?? '');
 
-    // Secret description fallback to null if empty
+    // Secret description / brand / model fallback to null if empty
+    if ($brand === '') $brand = null;
+    if ($model === '') $model = null;
     if ($secret_description === '') $secret_description = null;
     if ($serial_number === '') $serial_number = null;
     if ($storage_location === '') $storage_location = null;
 
-    if (empty($title) || empty($category) || empty($description) || empty($location) || empty($event_date) || empty($contact_phone)) {
+    if (empty($title) || empty($category) || empty($color) || empty($description) || empty($province) || empty($district) || empty($location_detail) || empty($event_date) || empty($contact_phone)) {
         $_SESSION['error'] = "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (*)";
+        header("Location: ../pages/report_{$type}.php");
+        exit;
+    }
+
+    if ($type === 'found' && empty($storage_location)) {
+        $_SESSION['error'] = "กรุณากรอกข้อมูลสถานที่เก็บรักษาของปัจจุบัน (*)";
+        header("Location: ../pages/report_found.php");
+        exit;
+    }
+
+    // Construct location for backward compatibility
+    $location = trim($location_detail . ' อ.' . $district . ' จ.' . $province);
+
+    // Backend length validations (Test Case 12)
+    if (mb_strlen($title, 'UTF-8') > 100) {
+        $_SESSION['error'] = "ชื่อเรียกทรัพย์สินต้องไม่เกิน 100 ตัวอักษร";
+        header("Location: ../pages/report_{$type}.php");
+        exit;
+    }
+    if ($brand !== null && mb_strlen($brand, 'UTF-8') > 100) {
+        $_SESSION['error'] = "แบรนด์/ยี่ห้อต้องไม่เกิน 100 ตัวอักษร";
+        header("Location: ../pages/report_{$type}.php");
+        exit;
+    }
+    if ($model !== null && mb_strlen($model, 'UTF-8') > 100) {
+        $_SESSION['error'] = "รุ่นต้องไม่เกิน 100 ตัวอักษร";
+        header("Location: ../pages/report_{$type}.php");
+        exit;
+    }
+    if (mb_strlen($color, 'UTF-8') > 100) {
+        $_SESSION['error'] = "สีของสิ่งของต้องไม่เกิน 100 ตัวอักษร";
+        header("Location: ../pages/report_{$type}.php");
+        exit;
+    }
+    if (mb_strlen($description, 'UTF-8') > 500) {
+        $_SESSION['error'] = "ลักษณะเฉพาะ/ที่พบเห็นต้องไม่เกิน 500 ตัวอักษร";
+        header("Location: ../pages/report_{$type}.php");
+        exit;
+    }
+    if ($secret_description !== null && mb_strlen($secret_description, 'UTF-8') > 500) {
+        $_SESSION['error'] = "รายละเอียดลับต้องไม่เกิน 500 ตัวอักษร";
+        header("Location: ../pages/report_{$type}.php");
+        exit;
+    }
+    if ($serial_number !== null && mb_strlen($serial_number, 'UTF-8') > 50) {
+        $_SESSION['error'] = "เลขซีเรียล/ข้อมูลระบุตัวตนต้องไม่เกิน 50 ตัวอักษร";
+        header("Location: ../pages/report_{$type}.php");
+        exit;
+    }
+    if (mb_strlen($contact_phone, 'UTF-8') > 20) {
+        $_SESSION['error'] = "เบอร์โทรศัพท์ติดต่อต้องไม่เกิน 20 ตัวอักษร";
         header("Location: ../pages/report_{$type}.php");
         exit;
     }
@@ -67,7 +125,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once '../includes/vision_helper.php';
                 $labels = detect_labels($destination);
                 if (!empty($labels)) {
-                    $image_labels = json_encode($labels, JSON_UNESCAPED_UNICODE);
+                    // Translate labels to 2 languages
+                    require_once '../includes/translation_helper.php';
+                    $translated_labels = translate_labels($pdo, $labels);
+                    $image_labels = json_encode($translated_labels, JSON_UNESCAPED_UNICODE);
                 }
             } else {
                 $_SESSION['error'] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ";
@@ -82,13 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        $sql = "INSERT INTO items (user_id, type, title, category, description, secret_description, serial_number, location, storage_location, event_date, contact_phone, image_path, image_labels, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')";
+        $sql = "INSERT INTO items (user_id, type, title, category, brand, model, color, description, secret_description, serial_number, location, province, district, location_detail, storage_location, event_date, contact_phone, image_path, image_labels, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')";
         
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            $user_id, $type, $title, $category, $description, $secret_description, 
-            $serial_number, $location, $storage_location, $event_date, $contact_phone, $image_path, $image_labels
+            $user_id, $type, $title, $category, $brand, $model, $color, $description, $secret_description, 
+            $serial_number, $location, $province, $district, $location_detail, $storage_location, $event_date, $contact_phone, $image_path, $image_labels
         ]);
 
         $item_id = $pdo->lastInsertId();
@@ -107,14 +168,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'serial_number' => $serial_number,
             'description' => $description,
             'secret_description' => $secret_description,
-            'image_labels' => $image_labels
+            'image_labels' => $image_labels,
+            'province' => $province,
+            'district' => $district,
+            'location_detail' => $location_detail,
+            'color' => $color,
+            'brand' => $brand,
+            'model' => $model
         ];
 
         // 1. Pre-extract SN from current item (even if not in serial_number field)
         $raw_sn = $serial_number;
         if (empty($raw_sn)) {
             $text_for_sn = $title . ' ' . $description . ' ' . $secret_description;
-            if (preg_match('/(?:s\/?n|serial|no|id):?\s*([a-z0-9\-\/\.]+)/i', $text_for_sn, $matches)) {
+            if (preg_match('/(?:s\/?n|serial|no|id|imei):?\s*([a-z0-9\-\/\.]+)/i', $text_for_sn, $matches)) {
                 $raw_sn = $matches[1];
             }
         }
@@ -132,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $search_tag3 = !empty($orig_kws[0]) ? "%" . mb_substr($orig_kws[0], 0, 4) . "%" : $search_tag1;
 
         // Broad fetch for potential matches - Expanded to search multiple tags across all text fields (including image_labels)
-        $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, image_labels 
+        $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, image_labels, province, district, location_detail, color, brand, model 
                       FROM items 
                       WHERE type = ? AND status = 'open' AND user_id != ? 
                       AND (category = ? 
@@ -168,9 +235,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Sort by score descending
-        usort($valid_matches, function($a, $b) {
-            return $b['match_score'] <=> $a['match_score'];
+        // Sort by score descending, then by brand/model match indicator descending
+        usort($valid_matches, function($a, $b) use ($new_item) {
+            if ($b['match_score'] !== $a['match_score']) {
+                return $b['match_score'] <=> $a['match_score'];
+            }
+            $brand_model_b = calculate_brand_model_match($new_item, $b);
+            $brand_model_a = calculate_brand_model_match($new_item, $a);
+            return $brand_model_b <=> $brand_model_a;
         });
 
         // Limit to top 5 matches

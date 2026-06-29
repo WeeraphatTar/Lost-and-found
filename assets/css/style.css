@@ -6,6 +6,11 @@
     such as complex animations, custom scrollbars, or third-party library overrides.
 */
 
+html,
+body {
+  font-family: 'Prompt', sans-serif;
+}
+
 /* Custom scrollbar for WebKit browsers */
 ::-webkit-scrollbar {
   width: 8px;

@@ -107,6 +107,29 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                             <?php echo $date_formatted; ?>
                         </div>
                     </div>
+                    <?php if (!empty($item['color'])): ?>
+                    <div class="bg-gray-50 p-4 rounded-md border border-gray-100">
+                        <div class="text-xs text-gray-500 mb-1">สีของสิ่งของ</div>
+                        <div class="font-medium text-gray-800 flex items-center">
+                            <svg class="w-4 h-4 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+                            <?php echo htmlspecialchars($item['color']); ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (!empty($item['brand']) || !empty($item['model'])): ?>
+                    <div class="bg-gray-50 p-4 rounded-md border border-gray-100">
+                        <div class="text-xs text-gray-500 mb-1">แบรนด์ / รุ่น</div>
+                        <div class="font-medium text-gray-800 flex items-center">
+                            <svg class="w-4 h-4 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                            <?php 
+                            $bm = [];
+                            if (!empty($item['brand'])) $bm[] = $item['brand'];
+                            if (!empty($item['model'])) $bm[] = $item['model'];
+                            echo htmlspecialchars(implode(' / ', $bm));
+                            ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                     <div class="bg-gray-50 p-4 rounded-md border border-gray-100 sm:col-span-2">
                         <div class="text-xs text-gray-500 mb-1">สถานที่</div>
                         <div class="font-medium text-gray-800 flex items-start">
@@ -185,7 +208,7 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
             $raw_sn = $item['serial_number'];
             if (empty($raw_sn)) {
                 $text_for_sn = $item['title'] . ' ' . $item['description'] . ' ' . $item['secret_description'];
-                if (preg_match('/(?:s\/?n|serial|no|id):?\s*([a-z0-9\-\/\.]+)/i', $text_for_sn, $matches)) {
+                if (preg_match('/(?:s\/?n|serial|no|id|imei):?\s*([a-z0-9\-\/\.]+)/i', $text_for_sn, $matches)) {
                     $raw_sn = $matches[1];
                 }
             }
@@ -203,7 +226,7 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
             $search_tag3 = !empty($orig_kws[0]) ? "%" . mb_substr($orig_kws[0], 0, 4) . "%" : $search_tag1;
 
             // ใช้ Logic ที่กว้างขึ้นในการดึงข้อมูลมาคำนวณ Smart Match
-            $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, event_date, image_path, image_labels 
+            $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, event_date, image_path, image_labels, province, district, location_detail, color, brand, model 
                           FROM items 
                           WHERE type = ? AND status = 'open' AND user_id != ? 
                           AND (category = ? 
@@ -239,8 +262,13 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
             }
 
             // เรียงลำดับตามคะแนน
-            usort($smart_matches, function($a, $b) {
-                return $b['match_score'] <=> $a['match_score'];
+            usort($smart_matches, function($a, $b) use ($item) {
+                if ($b['match_score'] !== $a['match_score']) {
+                    return $b['match_score'] <=> $a['match_score'];
+                }
+                $brand_model_b = calculate_brand_model_match($item, $b);
+                $brand_model_a = calculate_brand_model_match($item, $a);
+                return $brand_model_b <=> $brand_model_a;
             });
             
             $smart_matches = array_slice($smart_matches, 0, 3);

@@ -72,13 +72,13 @@ if (!isset($_SESSION['user_id'])) {
                         </div>
                         <div class="space-y-5">
                             <div>
-                                <label class="block font-medium text-primary mb-2">ชื่อเรียกทรัพย์สิน <span class="asterisk text-red-500">*</span></label>
+                                <label class="block font-medium text-primary mb-2">ชื่อสิ่งของที่หาย <span class="asterisk text-red-500">*</span></label>
                                 <input type="text" name="item_name" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น กระเป๋าสตางค์, กุญแจรถ" required>
                             </div>
                             <div class="flex flex-col sm:flex-row gap-6">
-                                <div class="flex-1">
+                                <div class="flex-1 relative">
                                     <label class="block font-medium text-primary mb-2">หมวดหมู่ <span class="asterisk text-red-500">*</span></label>
-                                    <select name="category" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" required>
+                                    <select id="category" name="category" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" required>
                                         <option value="">เลือกหมวดหมู่</option>
                                         <option value="electronics">อุปกรณ์อิเล็กทรอนิกส์</option>
                                         <option value="walletandcash">กระเป๋าสตางค์และเงินสด</option>
@@ -108,17 +108,36 @@ if (!isset($_SESSION['user_id'])) {
                 <div class="step hidden">
                     <div class="space-y-6">
                         <div>
-                            <h2 class="text-2xl font-bold text-primary mb-1">2. รายละเอียด</h2>
+                            <h2 class="text-2xl font-bold text-primary mb-1">2. รายละเอียดสิ่งของ</h2>
+                            <p class="text-sm text-gray-500 mb-2">กรุณาระบุรายละเอียดให้ชัดเจนที่สุด เพื่อเพิ่มโอกาสในการค้นพบ</p>
                             <hr class="border-gray-100 mb-6">
                         </div>
                         <div class="space-y-5">
                             <div>
-                                <label class="block font-medium text-primary mb-2">ลักษณะเฉพาะ (สี, ยี่ห้อ, จุดสังเกต) <span class="asterisk text-red-500">*</span></label>
-                                <textarea name="description" rows="4" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="อธิบายลักษณะเพิ่มเติมให้ชัดเจน เช่น รอยขีดข่วน หรือสติกเกอร์ที่ติดอยู่" required></textarea>
+                                <label class="block font-medium text-primary mb-2">รายละเอียดเพิ่มเติม <span class="asterisk text-red-500">*</span></label>
+                                <textarea name="description" rows="4" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น มีรอยขีดข่วนบริเวณมุมซ้าย ติดสติกเกอร์การ์ตูน มีชื่อเขียนอยู่ด้านหลัง หรือมีตำหนิที่สังเกตได้ชัดเจน" required></textarea>
+                                <p class="text-xs text-gray-400 mt-2">ระบุรายละเอียดที่ช่วยแยกแยะสิ่งของของคุณออกจากสิ่งของทั่วไป</p>
+                            </div>
+                            
+                            <div>
+                                <label class="block font-medium text-primary mb-2">สีของสิ่งของ <span class="asterisk text-red-500">*</span></label>
+                                <input type="text" name="color" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น ดำ, ดำแดง, ขาวครีม, น้ำเงินเข้ม" required>
+                                <p class="text-xs text-gray-400 mt-2">หากมีหลายสีสามารถระบุได้มากกว่า 1 สี</p>
+                            </div>
+                            <div class="flex flex-col sm:flex-row gap-6">
+                                <div class="flex-1">
+                                    <label class="block font-medium text-primary mb-2">แบรนด์ / ยี่ห้อ (ถ้ามี)</label>
+                                    <input type="text" name="brand" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น Apple, Samsung, Adidas, Nike">
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block font-medium text-primary mb-2">รุ่น (ถ้ามี)</label>
+                                    <input type="text" name="model" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น iPhone 15 Pro, Galaxy S24 Ultra">
+                                </div>
                             </div>
                             <div>
-                                <label class="block font-medium text-primary mb-2">เลขซีเรียล หรือ ข้อมูลระบุตัวตน (ถ้ามี)</label>
-                                <input type="text" name="serial_number" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น IMEI โทรศัพท์, เลขบัตร หรือเลขตัวถัง">
+                                <label class="block font-medium text-primary mb-2">เลขซีเรียล / เลขประจำตัว (ถ้ามี)</label>
+                                <input type="text" name="serial_number" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น IMEI โทรศัพท์, หมายเลขเครื่อง, เลขบัตร, เลขประจำอุปกรณ์">
+                                <p class="text-xs text-gray-400 mt-2">ข้อมูลนี้จะช่วยให้ระบบจับคู่ได้อย่างแม่นยำสูงสุด</p>
                             </div>
                         </div>
                     </div>
@@ -132,13 +151,40 @@ if (!isset($_SESSION['user_id'])) {
                 <div class="step hidden">
                     <div class="space-y-6">
                         <div>
-                            <h2 class="text-2xl font-bold text-primary mb-1">3. สถานที่ที่คาดว่าหาย</h2>
+                            <h2 class="text-2xl font-bold text-primary mb-1">3. สถานที่</h2>
                             <hr class="border-gray-100 mb-6">
                         </div>
                         <div class="space-y-5">
+                            <div class="flex flex-col sm:flex-row gap-6">
+                                <div class="flex-1 relative">
+                                    <label class="block font-medium text-primary mb-2">จังหวัด <span class="asterisk text-red-500">*</span></label>
+                                    <select id="province" name="province" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" required>
+                                        <option value="">เลือกจังหวัด</option>
+                                        <?php
+                                        $provinces_file = '../config/province.json';
+                                        if (file_exists($provinces_file)) {
+                                            $provinces_data = json_decode(file_get_contents($provinces_file), true);
+                                            usort($provinces_data, function($a, $b) {
+                                                return strcmp($a['name_th'], $b['name_th']);
+                                            });
+                                            foreach ($provinces_data as $prov) {
+                                                echo "<option value=\"" . htmlspecialchars($prov['name_th']) . "\" data-id=\"" . $prov['id'] . "\">" . htmlspecialchars($prov['name_th']) . "</option>";
+                                            }
+                                        }
+                                        ?>
+                                    </select>
+                                </div>
+                                <div class="flex-1 relative">
+                                    <label class="block font-medium text-primary mb-2">อำเภอ / เขต <span class="asterisk text-red-500">*</span></label>
+                                    <select id="district" name="district" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" required disabled>
+                                        <option value="">เลือกอำเภอ / เขต</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div>
-                                <label class="block font-medium text-primary mb-2">สถานที่เกิดเหตุ <span class="asterisk text-red-500">*</span></label>
-                                <input type="text" name="location" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น โรงอาหารตึก A, ห้องสมุดชั้น 2" required>
+                                <label class="block font-medium text-primary mb-2">สถานที่คาดว่าหาย <span class="asterisk text-red-500">*</span></label>
+                                <textarea name="location_detail" rows="3" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น ศูนย์อาหารเซ็นทรัลศรีราชา, อาคารจอดรถมหาวิทยาลัยบูรพา" required></textarea>
+                                <p class="text-xs text-gray-400 mt-2">ระบุสถานที่ที่คาดว่าของหายให้ละเอียดที่สุดเท่าที่จำได้</p>
                             </div>
                         </div>
                     </div>
@@ -158,17 +204,31 @@ if (!isset($_SESSION['user_id'])) {
                         <div class="space-y-5">
                             <div>
                                 <label class="block font-medium text-primary mb-2">อัปโหลดรูปภาพ (ถ้ามี)</label>
-                                <div class="mt-1 flex flex-col items-center justify-center px-6 py-10 border-2 border-gray-200 border-dashed rounded-xl hover:border-accent hover:bg-gray-50 transition-all cursor-pointer group" onclick="document.getElementById('item_image').click()">
-                                    <svg class="h-12 w-12 text-gray-400 group-hover:text-accent transition-colors mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                    </svg>
-                                    <div class="text-center">
-                                        <label for="item_image" class="relative cursor-pointer rounded-md font-medium text-primary hover:text-accent focus-within:outline-none">
-                                            <span class="text-lg">คลิกเพื่ออัปโหลดรูปภาพ</span>
-                                            <input id="item_image" name="item_image" type="file" class="sr-only" accept="image/*" onchange="const fileName = this.files[0] ? this.files[0].name : ''; document.getElementById('file-name-display').textContent = fileName; document.getElementById('file-name-display').classList.toggle('hidden', !fileName);">
-                                        </label>
-                                        <p class="text-sm text-gray-500 mt-1">PNG, JPG, GIF ไม่เกิน 10MB</p>
-                                        <p id="file-name-display" class="text-sm text-accent mt-2 font-medium hidden"></p>
+                                <div class="mt-1 flex flex-col items-center justify-center px-6 py-10 border-2 border-gray-200 border-dashed rounded-xl hover:border-accent hover:bg-gray-50 transition-all cursor-pointer group relative" onclick="document.getElementById('item_image').click()">
+                                    <div id="upload-placeholder" class="flex flex-col items-center justify-center">
+                                        <svg class="h-12 w-12 text-gray-400 group-hover:text-accent transition-colors mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
+                                        <div class="text-center">
+                                            <span class="relative rounded-md font-medium text-primary hover:text-accent">
+                                                <span class="text-lg">คลิกเพื่ออัปโหลดรูปภาพ</span>
+                                                <input id="item_image" name="item_image" type="file" class="sr-only" accept="image/*" onchange="previewImage(this)">
+                                            </span>
+                                            <p class="text-sm text-gray-500 mt-1">PNG, JPG, GIF ไม่เกิน 10MB</p>
+                                        </div>
+                                    </div>
+                                    <div id="image-preview-container" class="hidden flex flex-col items-center justify-center w-full relative">
+                                        <div class="relative">
+                                            <img id="image-preview" src="#" alt="Preview" class="max-h-64 object-contain rounded-xl border border-gray-200 shadow-sm mb-4">
+                                            <button type="button" onclick="removeImage(event)" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition shadow-md focus:outline-none" title="ลบรูปภาพ">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                            </button>
+                                        </div>
+                                        <span class="text-sm text-accent font-semibold flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"></path></svg>
+                                            คลิกเพื่อเปลี่ยนรูปภาพ
+                                        </span>
+                                        <p id="file-name-display" class="text-xs text-gray-400 mt-2 font-medium"></p>
                                     </div>
                                 </div>
                             </div>
@@ -192,12 +252,150 @@ if (!isset($_SESSION['user_id'])) {
     </div>
 </div>
 
+<!-- Load jQuery and Select2 -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<style>
+    /* Styling Select2 to match tailwind custom input styles */
+    .select2-container {
+        width: 100% !important;
+        display: block !important;
+    }
+    .select2-container--default .select2-selection--single {
+        background-color: #ffffff !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 0.75rem !important; /* rounded-xl */
+        height: auto !important;
+        padding: 0.75rem 1rem !important; /* py-3 px-4 */
+        transition: all 0.2s;
+    }
+    .select2-container--default.select2-container--focus .select2-selection--single,
+    .select2-container--default .select2-selection--single:focus {
+        border-color: #3b82f6 !important; /* accent */
+        box-shadow: 0 0 0 1px #3b82f6 !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        color: #1F2937 !important;
+        line-height: 1.5 !important;
+        padding-left: 0 !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__placeholder {
+        color: #9CA3AF !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 100% !important;
+        top: 0 !important;
+        right: 0.75rem !important;
+    }
+    /* Dropdown container */
+    .select2-dropdown {
+        border: 1px solid #E5E7EB !important;
+        border-radius: 0.75rem !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+        overflow: hidden;
+        z-index: 9999 !important;
+    }
+    /* Force dropdown downwards and limit height */
+    .select2-container--open .select2-dropdown {
+        top: 100% !important;
+        margin-top: 4px !important;
+    }
+    .select2-results__options {
+        max-height: 250px !important; /* Show ~10 items with scroll */
+    }
+    .select2-container--default .select2-results__option--highlighted[aria-selected] {
+        background-color: #3b82f6 !important; /* accent */
+    }
+    /* Search box inside dropdown */
+    .select2-search--dropdown {
+        padding: 0.5rem 0.75rem !important;
+    }
+    .select2-search--dropdown .select2-search__field {
+        border: 1px solid #E5E7EB !important;
+        border-radius: 0.5rem !important;
+        padding: 0.375rem 0.75rem !important;
+        outline: none !important;
+    }
+    .select2-search--dropdown .select2-search__field:focus {
+        border-color: #3b82f6 !important;
+    }
+    .select2-search--dropdown .select2-search__field::placeholder {
+        color: #9CA3AF !important; /* text-gray-400 */
+        opacity: 1; /* Firefox support */
+    }
+</style>
+
 <script>
+    const provinces = <?php echo file_get_contents('../config/province.json'); ?>;
+    const amphures = <?php echo file_get_contents('../config/amphure.json'); ?>;
+
     const steps = document.querySelectorAll(".step");
     const stepCircles = document.querySelectorAll(".step-circle");
     const stepTexts = document.querySelectorAll(".step-item span");
     const stepLine = document.getElementById("step-line");
     let currentStep = 0;
+
+    $(document).ready(function() {
+        // Dependent Dropdown & Select2 Initialization
+        $('#province').select2({
+            placeholder: 'เลือกจังหวัด',
+            allowClear: true,
+            dropdownParent: $('#province').parent()
+        }).on('select2:open', function() {
+            $(this).parent().find('.select2-search__field').attr('placeholder', 'ค้นหาจังหวัด...');
+        }).on('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const provinceId = selectedOption ? selectedOption.getAttribute('data-id') : null;
+            
+            const districtSelect = $('#district');
+            districtSelect.html('<option value="">เลือกอำเภอ / เขต</option>');
+            
+            if (!provinceId) {
+                districtSelect.prop('disabled', true).trigger('change');
+                return;
+            }
+            
+            const filteredAmphures = amphures.filter(amp => amp.province_id == provinceId);
+            filteredAmphures.sort((a, b) => a.name_th.localeCompare(b.name_th, 'th'));
+            
+            filteredAmphures.forEach(amp => {
+                const opt = document.createElement('option');
+                opt.value = amp.name_th;
+                opt.textContent = amp.name_th;
+                districtSelect.append(opt);
+            });
+            districtSelect.prop('disabled', false).trigger('change');
+            
+            // Clear validation styling if valid
+            if (this.checkValidity()) {
+                $(this).next('.select2-container').find('.select2-selection').removeClass('border-red-500').css('border-color', '');
+            }
+        });
+
+        $('#district').select2({
+            placeholder: 'เลือกอำเภอ / เขต',
+            allowClear: true,
+            dropdownParent: $('#district').parent()
+        }).on('select2:open', function() {
+            $(this).parent().find('.select2-search__field').attr('placeholder', 'ค้นหาอำเภอ / เขต...');
+        }).on('change', function() {
+            if (this.checkValidity()) {
+                $(this).next('.select2-container').find('.select2-selection').removeClass('border-red-500').css('border-color', '');
+            }
+        });
+
+        $('#category').select2({
+            placeholder: 'เลือกหมวดหมู่',
+            minimumResultsForSearch: -1,
+            dropdownParent: $('#category').parent()
+        }).on('change', function() {
+            if (this.checkValidity()) {
+                $(this).next('.select2-container').find('.select2-selection').removeClass('border-red-500').css('border-color', '');
+            }
+        });
+    });
 
     function showStep(n) {
         steps.forEach((step, index) => {
@@ -237,7 +435,17 @@ if (!isset($_SESSION['user_id'])) {
         } else {
             // Trigger browser validation UI
             const firstInvalid = steps[currentStep].querySelector(":invalid");
-            if (firstInvalid) firstInvalid.reportValidity();
+            if (firstInvalid) {
+                if (firstInvalid.tagName === 'SELECT' && $(firstInvalid).hasClass('select2-hidden-accessible')) {
+                    // Focus Select2 container or show custom validation
+                    const select2Container = $(firstInvalid).next('.select2-container');
+                    $('html, body').animate({
+                        scrollTop: select2Container.offset().top - 100
+                    }, 500);
+                } else {
+                    firstInvalid.reportValidity();
+                }
+            }
         }
     }
 
@@ -253,9 +461,49 @@ if (!isset($_SESSION['user_id'])) {
         currentStepFields.forEach(field => {
             if (!field.checkValidity()) {
                 valid = false;
+                if (field.tagName === 'SELECT' && $(field).hasClass('select2-hidden-accessible')) {
+                    const select2Selection = $(field).next('.select2-container').find('.select2-selection');
+                    select2Selection.addClass('border-red-500').css('border-color', '#ef4444');
+                }
+            } else {
+                if (field.tagName === 'SELECT' && $(field).hasClass('select2-hidden-accessible')) {
+                    const select2Selection = $(field).next('.select2-container').find('.select2-selection');
+                    select2Selection.removeClass('border-red-500').css('border-color', '');
+                }
             }
         });
         return valid;
+    }
+
+    function previewImage(input) {
+        const file = input.files[0];
+        const previewContainer = document.getElementById('image-preview-container');
+        const previewImage = document.getElementById('image-preview');
+        const placeholder = document.getElementById('upload-placeholder');
+        const fileNameDisplay = document.getElementById('file-name-display');
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+                previewContainer.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                fileNameDisplay.textContent = file.name;
+            }
+            reader.readAsDataURL(file);
+        } else {
+            previewImage.src = '#';
+            previewContainer.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            fileNameDisplay.textContent = '';
+        }
+    }
+
+    function removeImage(event) {
+        event.stopPropagation();
+        const input = document.getElementById('item_image');
+        input.value = '';
+        previewImage(input);
     }
 </script>
 

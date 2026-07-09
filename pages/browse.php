@@ -9,6 +9,18 @@ $status_filter = isset($_GET['status']) ? (array)$_GET['status'] : ['lost', 'fou
 $category_filter = isset($_GET['category']) ? (array)$_GET['category'] : [];
 $sort = isset($_GET['sort']) ? $_GET['sort'] : 'latest';
 
+// Pagination settings
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page < 1) $page = 1;
+$limit = 15; // 5 rows * 3 items per row
+
+// Helper function to build page URLs preserving filters
+function getPageUrl($page_num) {
+    $params = $_GET;
+    $params['page'] = $page_num;
+    return 'browse.php?' . http_build_query($params);
+}
+
 // Build Query
 $sql = "SELECT * FROM items WHERE status = 'open'";
 $params = [];
@@ -46,12 +58,21 @@ if ($sort === 'oldest') {
 try {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    $items = $stmt->fetchAll();
-    $total_count = count($items);
+    $all_items = $stmt->fetchAll();
+    $total_count = count($all_items);
+    
+    // Pagination calculation
+    $total_pages = ceil($total_count / $limit);
+    if ($total_pages < 1) $total_pages = 1;
+    if ($page > $total_pages) $page = $total_pages;
+    
+    $offset = ($page - 1) * $limit;
+    $items = array_slice($all_items, $offset, $limit);
 } catch (PDOException $e) {
     $_SESSION['error'] = "Database Error: " . $e->getMessage();
     $items = [];
     $total_count = 0;
+    $total_pages = 1;
 }
 ?>
 
@@ -179,6 +200,67 @@ try {
                         </div>
                     <?php endforeach; ?>
                 </div>
+
+                <!-- Pagination Control -->
+                <?php if ($total_pages > 1): ?>
+                    <div class="mt-10 mb-6 flex justify-center items-center gap-2">
+                        <!-- Previous Page -->
+                        <?php if ($page > 1): ?>
+                            <a href="<?php echo getPageUrl($page - 1); ?>" class="px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 hover:text-accent hover:border-accent transition flex items-center gap-1 shadow-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path></svg>
+                                ย้อนกลับ
+                            </a>
+                        <?php else: ?>
+                            <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-400 text-sm font-semibold rounded-xl cursor-not-allowed flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path></svg>
+                                ย้อนกลับ
+                            </span>
+                        <?php endif; ?>
+
+                        <!-- Page Numbers -->
+                        <div class="flex items-center gap-1.5">
+                            <?php 
+                            $start_page = max(1, $page - 2);
+                            $end_page = min($total_pages, $page + 2);
+                            
+                            if ($start_page > 1) {
+                                echo '<a href="' . getPageUrl(1) . '" class="px-3.5 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 hover:text-accent hover:border-accent transition shadow-sm">1</a>';
+                                if ($start_page > 2) {
+                                    echo '<span class="text-gray-400 px-1">...</span>';
+                                }
+                            }
+                            
+                            for ($i = $start_page; $i <= $end_page; $i++) {
+                                if ($i === $page) {
+                                    echo '<span class="px-3.5 py-2 bg-primary text-white text-sm font-bold rounded-xl shadow-md">' . $i . '</span>';
+                                } else {
+                                    echo '<a href="' . getPageUrl($i) . '" class="px-3.5 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 hover:text-accent hover:border-accent transition shadow-sm">' . $i . '</a>';
+                                }
+                            }
+                            
+                            if ($end_page < $total_pages) {
+                                if ($end_page < $total_pages - 1) {
+                                    echo '<span class="text-gray-400 px-1">...</span>';
+                                }
+                                echo '<a href="' . getPageUrl($total_pages) . '" class="px-3.5 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 hover:text-accent hover:border-accent transition shadow-sm">' . $total_pages . '</a>';
+                            }
+                            ?>
+                        </div>
+
+                        <!-- Next Page -->
+                        <?php if ($page < $total_pages): ?>
+                            <a href="<?php echo getPageUrl($page + 1); ?>" class="px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 hover:text-accent hover:border-accent transition flex items-center gap-1 shadow-sm">
+                                ถัดไป
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path></svg>
+                            </a>
+                        <?php else: ?>
+                            <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-400 text-sm font-semibold rounded-xl cursor-not-allowed flex items-center gap-1">
+                                ถัดไป
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path></svg>
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             <?php else: ?>
                 <div class="bg-white p-10 text-center rounded-lg border border-gray-200">
                     <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>

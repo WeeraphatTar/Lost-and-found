@@ -1,5 +1,5 @@
 <?php
-$base_url = 'http://localhost/Lost_found';
+$base_url = 'http://localhost/lost-and-found';
 require_once '../includes/header.php';
 require_once '../config/database.php';
 require_once '../includes/matching_helper.php';
@@ -116,7 +116,6 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                         </div>
                     </div>
                     <?php endif; ?>
-                    <?php if (!empty($item['brand']) || !empty($item['model'])): ?>
                     <div class="bg-gray-50 p-4 rounded-md border border-gray-100">
                         <div class="text-xs text-gray-500 mb-1">แบรนด์ / รุ่น</div>
                         <div class="font-medium text-gray-800 flex items-center">
@@ -125,11 +124,14 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                             $bm = [];
                             if (!empty($item['brand'])) $bm[] = $item['brand'];
                             if (!empty($item['model'])) $bm[] = $item['model'];
-                            echo htmlspecialchars(implode(' / ', $bm));
+                            if (empty($bm)) {
+                                echo '-';
+                            } else {
+                                echo htmlspecialchars(implode(' / ', $bm));
+                            }
                             ?>
                         </div>
                     </div>
-                    <?php endif; ?>
                     <div class="bg-gray-50 p-4 rounded-md border border-gray-100 sm:col-span-2">
                         <div class="text-xs text-gray-500 mb-1">สถานที่</div>
                         <div class="font-medium text-gray-800 flex items-start">

@@ -1,5 +1,5 @@
 <?php
-$base_url = 'http://localhost/Lost_found';
+$base_url = 'http://localhost/lost-and-found';
 require_once '../includes/header.php';
 require_once '../config/database.php';
 require_once '../includes/notification_helper.php';

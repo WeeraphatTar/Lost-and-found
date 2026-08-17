@@ -36,7 +36,7 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && isset($
 }
 
 // กำหนด Base URL ของโปรเจค
-$base_url = 'http://localhost/Lost_found';
+$base_url = 'http://localhost/lost-and-found';
 
 $nav_items = [
     '/index.php' => 'หน้าหลัก',

@@ -20,7 +20,7 @@ if (!isset($_SESSION['user_id'])) {
 
             <!-- Stepper -->
             <div class="mb-12 max-w-2xl mx-auto">
-                <div class="flex items-center justify-between relative">
+                <div class="flex items-start justify-between relative">
                     <!-- Line Container -->
                     <div class="absolute left-0 top-5 transform -translate-y-1/2 w-full px-5 -z-0">
                         <div class="h-0.5 bg-gray-100 w-full relative">
@@ -29,27 +29,27 @@ if (!isset($_SESSION['user_id'])) {
                     </div>
                     
                     <!-- Step 1 -->
-                    <div class="step-item flex flex-col items-center relative z-10 w-10">
+                    <div class="step-item flex flex-col items-center relative z-10 w-16 sm:w-20">
                         <div class="step-circle w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold mb-2 shadow-sm transition-all duration-300">1</div>
-                        <span class="text-xs font-semibold text-primary text-center whitespace-nowrap">ข้อมูลพื้นฐาน</span>
+                        <span class="text-[10px] sm:text-xs font-semibold text-primary text-center leading-tight">ข้อมูลพื้นฐาน</span>
                     </div>
                     
                     <!-- Step 2 -->
-                    <div class="step-item flex flex-col items-center relative z-10 w-10">
+                    <div class="step-item flex flex-col items-center relative z-10 w-16 sm:w-20">
                         <div class="step-circle w-10 h-10 rounded-full bg-white border-2 border-gray-100 text-gray-400 flex items-center justify-center font-bold mb-2 transition-all duration-300">2</div>
-                        <span class="text-xs font-semibold text-gray-400 text-center whitespace-nowrap">รายละเอียด</span>
+                        <span class="text-[10px] sm:text-xs font-semibold text-gray-400 text-center leading-tight">รายละเอียด</span>
                     </div>
                     
                     <!-- Step 3 -->
-                    <div class="step-item flex flex-col items-center relative z-10 w-10">
+                    <div class="step-item flex flex-col items-center relative z-10 w-16 sm:w-20">
                         <div class="step-circle w-10 h-10 rounded-full bg-white border-2 border-gray-100 text-gray-400 flex items-center justify-center font-bold mb-2 transition-all duration-300">3</div>
-                        <span class="text-xs font-semibold text-gray-400 text-center whitespace-nowrap">สถานที่</span>
+                        <span class="text-[10px] sm:text-xs font-semibold text-gray-400 text-center leading-tight">สถานที่</span>
                     </div>
                     
                     <!-- Step 4 -->
-                    <div class="step-item flex flex-col items-center relative z-10 w-10">
+                    <div class="step-item flex flex-col items-center relative z-10 w-16 sm:w-20">
                         <div class="step-circle w-10 h-10 rounded-full bg-white border-2 border-gray-100 text-gray-400 flex items-center justify-center font-bold mb-2 transition-all duration-300">4</div>
-                        <span class="text-xs font-semibold text-gray-400 text-center whitespace-nowrap">รูปภาพ & ติดต่อ</span>
+                        <span class="text-[10px] sm:text-xs font-semibold text-gray-400 text-center leading-tight">รูปภาพ & ติดต่อ</span>
                     </div>
                 </div>
             </div>

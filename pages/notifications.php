@@ -2,7 +2,7 @@
 $base_url = 'http://localhost/lost-and-found';
 require_once '../includes/header.php';
 require_once '../config/database.php';
-require_once '../includes/notification_helper.php';
+require_once '../helpers/notification_helper.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {

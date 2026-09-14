@@ -48,8 +48,8 @@ $nav_items = [
 
 // Notification logic
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/notification_helper.php';
-require_once __DIR__ . '/messaging_helper.php';
+require_once __DIR__ . '/../helpers/notification_helper.php';
+require_once __DIR__ . '/../helpers/messaging_helper.php';
 
 $unread_count = 0;
 $unread_notifications = [];
@@ -200,8 +200,18 @@ if (isset($_SESSION['user_id'])) {
                                 <div class="py-1">
                                     <a href="<?php echo $base_url; ?>/pages/dashboard.php" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-accent transition">
                                         <svg class="w-4 h-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                        รายการของฉัน
+                                        จัดการประกาศของฉัน
                                     </a>
+                                    <a href="<?php echo $base_url; ?>/pages/claims.php" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-accent transition">
+                                        <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                        รายการ Claim ของฉัน
+                                    </a>
+                                    <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
+                                        <a href="<?php echo $base_url; ?>/pages/admin/admin_claims.php" class="flex items-center px-4 py-2.5 text-sm text-primary hover:bg-slate-50 transition font-semibold">
+                                            <svg class="w-4 h-4 mr-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                            จัดการ Claim (Admin)
+                                        </a>
+                                    <?php endif; ?>
                                     <a href="<?php echo $base_url; ?>/pages/profile.php" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-accent transition">
                                         <svg class="w-4 h-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                                         โปรไฟล์ส่วนตัว
@@ -257,14 +267,20 @@ if (isset($_SESSION['user_id'])) {
                         </div>
                         <?php 
                         $dash_mobile_active = ($current_page == 'dashboard.php') ? 'text-white bg-secondary border-l-4 border-accent font-bold' : 'text-gray-400 hover:text-white hover:bg-secondary';
+                        $claims_mobile_active = ($current_page == 'claims.php') ? 'text-white bg-secondary border-l-4 border-accent font-bold' : 'text-gray-400 hover:text-white hover:bg-secondary';
                         ?>
-                        <a href="<?php echo $base_url; ?>/pages/dashboard.php" class="block px-4 py-3 rounded-md text-base transition <?php echo $dash_mobile_active; ?>">จัดการประกาศ</a>
+                        <a href="<?php echo $base_url; ?>/pages/dashboard.php" class="block px-4 py-3 rounded-md text-base transition <?php echo $dash_mobile_active; ?>">จัดการประกาศของฉัน</a>
+                        <a href="<?php echo $base_url; ?>/pages/claims.php" class="block px-4 py-3 rounded-md text-base transition <?php echo $claims_mobile_active; ?>">รายการ Claim ของฉัน</a>
+                        <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
+                            <a href="<?php echo $base_url; ?>/pages/admin/admin_claims.php" class="block px-4 py-3 rounded-md text-base text-blue-300 font-bold hover:bg-secondary transition">จัดการ Claim (Admin)</a>
+                        <?php endif; ?>
                         <a href="<?php echo $base_url; ?>/pages/messages.php" class="block px-4 py-3 rounded-md text-base text-gray-400 hover:text-white hover:bg-secondary transition flex justify-between items-center">
                             <span>ข้อความ</span>
                             <?php if ($unread_msg_count > 0): ?>
                                 <span class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full"><?php echo $unread_msg_count; ?></span>
                             <?php endif; ?>
                         </a>
+                        <a href="<?php echo $base_url; ?>/pages/profile.php" class="block px-4 py-3 rounded-md text-base text-gray-400 hover:text-white hover:bg-secondary transition">โปรไฟล์ส่วนตัว</a>
                         <a href="<?php echo $base_url; ?>/actions/auth_action.php?action=logout" onclick="return confirm('คุณต้องการออกจากระบบใช่หรือไม่?');" class="block w-full text-center px-4 py-3 border border-red-400/50 text-red-400 rounded-md hover:bg-red-500 hover:text-white transition mt-4">ออกจากระบบ</a>
                     <?php else: ?>
                         <div class="grid grid-cols-2 gap-3 px-2">

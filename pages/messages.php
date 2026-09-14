@@ -1,7 +1,7 @@
 <?php
 require_once '../includes/header.php';
 require_once '../config/database.php';
-require_once '../includes/messaging_helper.php';
+require_once '../helpers/messaging_helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     $_SESSION['error'] = "กรุณาเข้าสู่ระบบเพื่อดูข้อความ";
@@ -40,7 +40,7 @@ $conversations = get_conversations($pdo, $user_id);
                         $last_msg_date = date('d M Y H:i', strtotime($conv['created_at']));
                         $item_img = !empty($conv['item_image']) ? $base_url . '/' . htmlspecialchars($conv['item_image']) : '';
                     ?>
-                    <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $conv['item_id']; ?>&receiver_id=<?php echo $other_user_id; ?>" class="block p-4 sm:p-6 hover:bg-blue-50 transition relative <?php echo $is_unread ? 'bg-blue-50/30' : ''; ?>">
+                    <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $conv['item_id']; ?>&receiver_id=<?php echo $other_user_id; ?>&ref=messages" class="block p-4 sm:p-6 hover:bg-blue-50 transition relative <?php echo $is_unread ? 'bg-blue-50/30' : ''; ?>">
                         <div class="flex items-center gap-4">
                             <!-- Item Image or Icon -->
                             <div class="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200">

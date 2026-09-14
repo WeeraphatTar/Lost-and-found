@@ -27,11 +27,19 @@ try {
 <div class="py-12 bg-background flex-grow">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div class="flex justify-between items-center mb-8">
+        <div class="flex justify-between items-center mb-8 flex-wrap gap-4">
             <h1 class="text-2xl sm:text-3xl font-bold text-primary">รายการประกาศของฉัน</h1>
-            <div class="space-x-2">
-                <a href="<?php echo $base_url; ?>/pages/report_lost.php" class="px-4 py-2 bg-primary text-white text-sm font-medium rounded hover:bg-secondary transition shadow-sm hidden sm:inline-block">แจ้งของหาย</a>
-                <a href="<?php echo $base_url; ?>/pages/report_found.php" class="px-4 py-2 border border-primary text-primary text-sm font-medium rounded hover:bg-primary hover:text-white transition bg-white hidden sm:inline-block">แจ้งพบของ</a>
+            <div class="flex items-center gap-2 flex-wrap">
+                <a href="<?php echo $base_url; ?>/pages/claims.php" class="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition shadow-sm inline-flex items-center">
+                    รายการ Claim ของฉัน
+                </a>
+                <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
+                    <a href="<?php echo $base_url; ?>/pages/admin/admin_claims.php" class="px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-900 transition shadow-sm flex items-center gap-1.5">
+                        ศูนย์จัดการ Claim (Admin)
+                    </a>
+                <?php endif; ?>
+                <a href="<?php echo $base_url; ?>/pages/report_lost.php" class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-secondary transition shadow-sm hidden sm:inline-block">แจ้งของหาย</a>
+                <a href="<?php echo $base_url; ?>/pages/report_found.php" class="px-4 py-2 border border-primary text-primary text-sm font-medium rounded-lg hover:bg-primary hover:text-white transition bg-white hidden sm:inline-block">แจ้งพบของ</a>
             </div>
         </div>
 

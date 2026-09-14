@@ -24,6 +24,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Check if there are active claims on this item
+    $claim_check = $pdo->prepare("SELECT id FROM claims WHERE item_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled') LIMIT 1");
+    $claim_check->execute([$item_id]);
+    if ($claim_check->fetch()) {
+        $_SESSION['error'] = "ไม่สามารถแก้ไขประกาศนี้ได้ เนื่องจากอยู่ระหว่างกระบวนการยื่นคำร้อง Claim";
+        header("Location: ../pages/item_detail.php?id=$item_id");
+        exit;
+    }
+
     $type = $_POST['type'] ?? $existing_item['type'];
     $title = trim($_POST['item_name'] ?? '');
     $category = trim($_POST['category'] ?? '');

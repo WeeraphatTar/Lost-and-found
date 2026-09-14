@@ -122,13 +122,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $image_path = 'uploads/items/' . $new_filename; // relative to base url
                 
                 // Detect labels using Google Cloud Vision API
-                require_once '../includes/vision_helper.php';
-                $labels = detect_labels($destination);
-                if (!empty($labels)) {
-                    // Translate labels to 2 languages
-                    require_once '../includes/translation_helper.php';
-                    $translated_labels = translate_labels($pdo, $labels);
-                    $image_labels = json_encode($translated_labels, JSON_UNESCAPED_UNICODE);
+                if (file_exists('../helpers/vision_helper.php')) {
+                    require_once '../helpers/vision_helper.php';
+                    $labels = detect_labels($destination);
+                    if (!empty($labels) && file_exists('../helpers/translation_helper.php')) {
+                        require_once '../helpers/translation_helper.php';
+                        $translated_labels = translate_labels($pdo, $labels);
+                        $image_labels = json_encode($translated_labels, JSON_UNESCAPED_UNICODE);
+                    }
                 }
             } else {
                 $_SESSION['error'] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ";
@@ -155,8 +156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $item_id = $pdo->lastInsertId();
 
         // --- Improved Matching Logic & Notifications ---
-        require_once '../includes/notification_helper.php';
-        require_once '../includes/matching_helper.php';
+        require_once '../helpers/notification_helper.php';
+        require_once '../helpers/matching_helper.php';
         
         $target_type = ($type === 'lost') ? 'found' : 'lost';
         

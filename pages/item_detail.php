@@ -2,7 +2,7 @@
 $base_url = 'http://localhost/lost-and-found';
 require_once '../includes/header.php';
 require_once '../config/database.php';
-require_once '../includes/matching_helper.php';
+require_once '../helpers/matching_helper.php';
 
 // รับค่า ID จาก URL
 $item_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -67,6 +67,21 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
             กลับหน้ารายการประกาศ
         </a>
 
+        <!-- Flash Messages Banner -->
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-medium flex items-center">
+                <svg class="w-5 h-5 mr-3 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                <?php echo $_SESSION['success']; unset($_SESSION['success']); ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl text-sm font-medium flex items-center">
+                <svg class="w-5 h-5 mr-3 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+            </div>
+        <?php endif; ?>
+
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col md:flex-row">
             
             <!-- ฝั่งซ้าย: รูปภาพ -->
@@ -107,15 +122,13 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                             <?php echo $date_formatted; ?>
                         </div>
                     </div>
-                    <?php if (!empty($item['color'])): ?>
                     <div class="bg-gray-50 p-4 rounded-md border border-gray-100">
                         <div class="text-xs text-gray-500 mb-1">สีของสิ่งของ</div>
                         <div class="font-medium text-gray-800 flex items-center">
                             <svg class="w-4 h-4 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
-                            <?php echo htmlspecialchars($item['color']); ?>
+                            <?php echo !empty($item['color']) ? htmlspecialchars($item['color']) : '-'; ?>
                         </div>
                     </div>
-                    <?php endif; ?>
                     <div class="bg-gray-50 p-4 rounded-md border border-gray-100">
                         <div class="text-xs text-gray-500 mb-1">แบรนด์ / รุ่น</div>
                         <div class="font-medium text-gray-800 flex items-center">
@@ -176,24 +189,60 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                             <!-- <div class="text-gray-500 text-sm mt-0.5">ผู้ลงประกาศ</div> -->
                         </div>
                         
+                        <?php 
+                        // ตรวจสอบข้อมูล Claim เดิมของผู้ใช้นี้สำหรับประกาศนี้
+                        $user_claim = null;
+                        if (isset($_SESSION['user_id'])) {
+                            $claim_check_stmt = $pdo->prepare("SELECT id, status FROM claims WHERE item_id = ? AND claimant_id = ? ORDER BY id DESC LIMIT 1");
+                            $claim_check_stmt->execute([$item['id'], $_SESSION['user_id']]);
+                            $user_claim = $claim_check_stmt->fetch();
+                        }
+                        ?>
+
                         <!-- ปุ่มแก้ไขสำหรับเจ้าของโพสต์ -->
                         <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
-                            <a href="<?php echo $base_url; ?>/pages/edit_item.php?id=<?php echo $item['id']; ?>" class="ml-auto px-4 py-2 bg-yellow-500 text-white font-medium rounded hover:bg-yellow-600 transition shadow-sm flex items-center whitespace-nowrap">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                แก้ไขประกาศ
-                            </a>
+                            <?php
+                            $active_claim_stmt = $pdo->prepare("SELECT id FROM claims WHERE item_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled') LIMIT 1");
+                            $active_claim_stmt->execute([$item['id']]);
+                            $has_active_claim = $active_claim_stmt->fetch();
+                            ?>
+                            <?php if ($has_active_claim || $item['status'] !== 'open'): ?>
+                                <a href="<?php echo $base_url; ?>/pages/edit_item.php?id=<?php echo $item['id']; ?>" class="ml-auto px-4 py-2 bg-slate-200 text-slate-500 font-medium rounded-lg hover:bg-slate-300 transition text-sm whitespace-nowrap" title="ไม่สามารถแก้ไขได้ขณะมีคำร้องค้างอยู่">
+                                    แก้ไขประกาศ
+                                </a>
+                            <?php else: ?>
+                                <a href="<?php echo $base_url; ?>/pages/edit_item.php?id=<?php echo $item['id']; ?>" class="ml-auto px-4 py-2 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 transition shadow-sm text-sm whitespace-nowrap">
+                                    แก้ไขประกาศ
+                                </a>
+                            <?php endif; ?>
                         <?php endif; ?>
 
-                        <!-- ปุ่มส่งข้อความ (Chat) -->
+                        <!-- ปุ่มยื่น Claim และ ปุ่มส่งข้อความ สำหรับผู้ใช้คนอื่น (ชิดขวา ml-auto) -->
                         <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $item['user_id']): ?>
-                            <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $item['id']; ?>&receiver_id=<?php echo $item['user_id']; ?>" class="ml-auto px-4 py-2 bg-accent text-white font-medium rounded hover:bg-blue-600 transition shadow-sm flex items-center whitespace-nowrap">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                                ส่งข้อความ
-                            </a>
+                            <div class="ml-auto flex items-center justify-end gap-2 flex-wrap text-sm">
+                                <?php if ($item['type'] === 'found'): ?>
+                                    <?php if ($user_claim && in_array($user_claim['status'], ['pending', 'approved', 'under_admin_review', 'meeting_scheduled'])): ?>
+                                        <a href="<?php echo $base_url; ?>/pages/claim_detail.php?id=<?php echo $user_claim['id']; ?>" class="px-4 py-2 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition border border-slate-200 whitespace-nowrap">
+                                            ดูสถานะ Claim
+                                        </a>
+                                        <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $item['id']; ?>&receiver_id=<?php echo $item['user_id']; ?>&ref=item_detail" class="px-4 py-2 bg-accent text-white font-medium rounded-lg hover:bg-blue-600 transition shadow-sm whitespace-nowrap">
+                                            แชทกับผู้พบของ
+                                        </a>
+                                    <?php elseif ($item['status'] === 'open'): ?>
+                                        <a href="<?php echo $base_url; ?>/pages/submit_claim.php?item_id=<?php echo $item['id']; ?>" class="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition shadow-sm whitespace-nowrap">
+                                            ยื่นคำร้อง Claim
+                                        </a>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <!-- ประกาศตามหาของหาย (Lost) สามารถส่งข้อความคุยได้ตามปกติ -->
+                                    <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $item['id']; ?>&receiver_id=<?php echo $item['user_id']; ?>&ref=item_detail" class="px-4 py-2 bg-accent text-white font-medium rounded-lg hover:bg-blue-600 transition shadow-sm whitespace-nowrap">
+                                        ส่งข้อความ
+                                    </a>
+                                <?php endif; ?>
+                            </div>
                         <?php elseif (!isset($_SESSION['user_id'])): ?>
-                            <a href="<?php echo $base_url; ?>/pages/login.php" class="ml-auto px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded hover:bg-gray-300 transition shadow-sm flex items-center whitespace-nowrap">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                                เข้าสู่ระบบเพื่อส่งข้อความ
+                            <a href="<?php echo $base_url; ?>/pages/login.php" class="ml-auto px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition shadow-sm text-sm whitespace-nowrap">
+                                เข้าสู่ระบบเพื่อดำเนินการ
                             </a>
                         <?php endif; ?>
                     </div>
@@ -201,6 +250,8 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
 
             </div>
         </div>
+
+
 
         <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
             <?php

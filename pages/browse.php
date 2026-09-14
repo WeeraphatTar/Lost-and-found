@@ -76,17 +76,12 @@ try {
 }
 ?>
 
-<style>
-    /* บังคับไม่ให้ทั้งหน้าเว็บขยับได้ ให้ขยับได้เฉพาะส่วนที่กำหนด */
-    body { overflow: hidden !important; }
-</style>
-
-<div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex-grow flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+<div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow">
     
-    <!-- ส่วนหัวอยู่นิ่ง -->
-    <div class="bg-background z-40 pb-4 border-b border-gray-200 mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 flex-shrink-0">
+    <!-- ส่วนหัว -->
+    <div class="bg-background pb-4 border-b border-gray-200 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 class="text-2xl font-bold text-primary m-0">รายการประกาศทั้งหมด</h1>
-        <div class="text-sm text-gray-500 flex items-center gap-4 w-full sm:w-auto">
+        <div class="text-sm text-gray-500 flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
             <span>พบทั้งหมด <?php echo $total_count; ?> รายการ</span>
             <select form="filter-form" name="sort" onchange="this.form.submit()" class="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-accent bg-white">
                 <option value="latest" <?php echo ($sort === 'latest') ? 'selected' : ''; ?>>ล่าสุด</option>
@@ -96,25 +91,30 @@ try {
     </div>
     
     <?php if (isset($_SESSION['success'])): ?>
-        <div class="p-4 mb-4 text-sm text-green-700 bg-green-100 border border-green-300 rounded-md flex-shrink-0">
+        <div class="p-4 mb-4 text-sm text-green-700 bg-green-100 border border-green-300 rounded-md">
             <?php echo $_SESSION['success']; unset($_SESSION['success']); ?>
         </div>
     <?php endif; ?>
     
     <?php if (isset($_SESSION['error'])): ?>
-        <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 border border-red-300 rounded-md flex-shrink-0">
+        <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 border border-red-300 rounded-md">
             <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
         </div>
     <?php endif; ?>
 
     <!-- ส่วนเนื้อหา: แบ่งซ้ายขวา -->
-    <div class="flex flex-col md:flex-row gap-6 items-start flex-grow overflow-hidden pb-6">
+    <div class="flex flex-col md:flex-row gap-6 items-start">
         
-        <!-- Sidebar Filter อยู่นิ่ง -->
-        <aside class="w-full md:w-72 flex-shrink-0 bg-white p-5 rounded-lg border border-gray-200 shadow-sm overflow-y-auto h-fit max-h-full">
-            <h2 class="text-lg font-bold text-primary mb-4 pb-2 border-b border-gray-100">ตัวกรองค้นหา</h2>
+        <!-- Sidebar Filter (Mobile Accordion / Collapsible Support) -->
+        <aside class="w-full md:w-72 flex-shrink-0 bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+            <div class="flex items-center justify-between md:block mb-4 pb-2 border-b border-gray-100">
+                <h2 class="text-lg font-bold text-primary">ตัวกรองค้นหา</h2>
+                <button type="button" onclick="document.getElementById('filter-form').classList.toggle('hidden')" class="md:hidden text-xs font-semibold text-accent px-2.5 py-1 bg-slate-100 rounded border border-slate-200">
+                    ซ่อน/แสดง ตัวกรอง
+                </button>
+            </div>
             
-            <form id="filter-form" action="" method="GET" class="space-y-6">
+            <form id="filter-form" action="" method="GET" class="space-y-6 hidden md:block">
                 <!-- Search Keyword -->
                 <div>
                     <h3 class="font-semibold text-primary mb-2">คำค้นหา</h3>
@@ -167,8 +167,8 @@ try {
             </form>
         </aside>
 
-        <!-- Main Content (เลื่อนได้) -->
-        <main class="flex-1 w-full overflow-y-auto h-full pr-2 pb-16 custom-scrollbar">
+        <!-- Main Content -->
+        <main class="flex-1 w-full">
             <?php if ($total_count > 0): ?>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     <?php foreach ($items as $item): ?>

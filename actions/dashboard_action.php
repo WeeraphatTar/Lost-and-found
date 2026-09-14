@@ -42,6 +42,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['success'] = "ปิดประกาศเรียบร้อยแล้ว";
 
         } elseif ($action === 'delete') {
+            // ตรวจสอบว่ามีคำร้อง Claim ค้างอยู่บนประกาศนี้หรือไม่
+            $claim_check = $pdo->prepare("SELECT id FROM claims WHERE item_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled') LIMIT 1");
+            $claim_check->execute([$item_id]);
+            if ($claim_check->fetch()) {
+                $_SESSION['error'] = "ไม่สามารถลบประกาศได้ เนื่องจากมีคำร้องขอ Claim ค้างอยู่ในระบบ กรุณาดำเนินการกับคำร้องให้เสร็จสิ้นก่อน";
+                header("Location: ../pages/dashboard.php");
+                exit;
+            }
+
             // ลบประกาศถาวร
             // ลบรูปภาพจากเซิร์ฟเวอร์ก่อน (ถ้ามี)
             if (!empty($item['image_path'])) {

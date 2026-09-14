@@ -31,6 +31,15 @@ try {
         echo "<script>window.location.href = '".$base_url."/pages/dashboard.php';</script>";
         exit;
     }
+
+    // Check if there are active claims on this item
+    $claim_check = $pdo->prepare("SELECT id FROM claims WHERE item_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled') LIMIT 1");
+    $claim_check->execute([$item_id]);
+    if ($claim_check->fetch() || $item['status'] !== 'open') {
+        $_SESSION['error'] = "ไม่สามารถแก้ไขประกาศนี้ได้ เนื่องจากอยู่ระหว่างกระบวนการยื่นคำร้อง Claim หรือส่งมอบสิ่งของ";
+        echo "<script>window.location.href = '".$base_url."/pages/item_detail.php?id={$item_id}';</script>";
+        exit;
+    }
 } catch (PDOException $e) {
     $_SESSION['error'] = "Database Error: " . $e->getMessage();
     echo "<script>window.location.href = '".$base_url."/pages/dashboard.php';</script>";

@@ -39,18 +39,8 @@ try {
 $type_label = ($item['type'] === 'lost') ? 'ตามหาของหาย' : 'ประกาศพบของ';
 $type_color = ($item['type'] === 'lost') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700';
 
-$categories = [
-    'electronics' => 'อุปกรณ์อิเล็กทรอนิกส์',
-    'walletandcash' => 'กระเป๋าสตางค์และเงินสด', 
-    'cardanddocument' => 'บัตรและเอกสารสำคัญ',
-    'keyandkeycard' => 'กุญแจและคีย์การ์ด',
-    'bagandluggage' => 'กระเป๋าและสัมภาระ',
-    'clothingandjewelry' => 'เครื่องแต่งกายและเครื่องประดับ',
-    'studymaterialandstationery' => 'อุปกรณ์การเรียนและเครื่องเขียน',
-    'personalbelonging' => 'ของใช้ส่วนตัว',
-    'vehicleandaccessory' => 'ยานพาหนะและอุปกรณ์เสริม',
-    'others' => 'อื่นๆ'
-];
+require_once '../helpers/category_helper.php';
+$categories = get_active_categories($pdo);
 $category_label = isset($categories[$item['category']]) ? $categories[$item['category']] : 'อื่นๆ';
 
 $date_formatted = date('d M Y', strtotime($item['event_date']));
@@ -62,9 +52,24 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <!-- ปุ่มกลับ -->
-        <a href="<?php echo $base_url; ?>/pages/browse.php" class="inline-flex items-center text-primary hover:text-accent font-medium mb-6 transition">
+        <?php 
+        $is_admin = (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin');
+        if ($is_admin) {
+            if ($item['type'] === 'lost') {
+                $back_url = $base_url . '/pages/admin/admin_itemslost.php';
+                $back_label = 'กลับหน้ารายการของหาย';
+            } else {
+                $back_url = $base_url . '/pages/admin/admin_itemsfound.php';
+                $back_label = 'กลับหน้ารายการของที่เก็บได้';
+            }
+        } else {
+            $back_url = $base_url . '/pages/browse.php';
+            $back_label = 'กลับหน้ารายการประกาศ';
+        }
+        ?>
+        <a href="<?php echo $back_url; ?>" class="inline-flex items-center text-primary hover:text-accent font-medium mb-6 transition">
             <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-            กลับหน้ารายการประกาศ
+            <?php echo $back_label; ?>
         </a>
 
         <!-- Flash Messages Banner -->
@@ -98,16 +103,24 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
 
             <!-- ฝั่งขวา: ข้อมูลรายละเอียด -->
             <div class="md:w-7/12 p-6 sm:p-10 flex flex-col">
-                <div class="flex justify-between items-start mb-4">
+                <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
                     <span class="inline-block px-3 py-1 rounded <?php echo $type_color; ?> text-sm font-semibold">
                         <?php echo $type_label; ?>
                     </span>
-                    <span class="text-xs text-gray-600">โพสต์เมื่อ: <?php echo $posted_date; ?></span>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-400">โพสต์เมื่อ: <?php echo $posted_date; ?></span>
+                        <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $item['user_id'] && !$is_admin): ?>
+                            <button type="button" onclick="openReportModal()" title="รายงานประกาศนี้" class="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 px-2 py-1 rounded transition border border-transparent hover:border-red-100">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                <span>รายงาน</span>
+                            </button>
+                        <?php endif; ?>
+                    </div>
                 </div>
 
                 <h1 class="text-2xl sm:text-3xl font-bold text-primary mb-6"><?php echo htmlspecialchars($item['title']); ?></h1>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div class="bg-gray-50 p-4 rounded-md border border-gray-100">
                         <div class="text-xs text-gray-500 mb-1">หมวดหมู่</div>
                         <div class="font-medium text-gray-800 flex items-center">
@@ -152,33 +165,52 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                             <?php echo htmlspecialchars($item['location']); ?>
                         </div>
                     </div>
-                    <?php 
-                    $is_owner = (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']);
-                    $is_admin = (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin');
-                    if ($item['type'] === 'found' && !empty($item['storage_location']) && ($is_owner || $is_admin)): 
-                    ?>
-                        <div class="bg-green-50 p-4 rounded-md border border-green-100 sm:col-span-2">
-                            <div class="text-xs text-green-600 mb-1">สถานที่เก็บรักษาของในปัจจุบัน (เฉพาะผู้พบของ)</div>
-                            <div class="font-medium text-green-800">
-                                <?php echo htmlspecialchars($item['storage_location']); ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
                 </div>
 
-                <div class="mb-8">
-                    <h3 class="text-lg font-bold text-primary mb-3">รายละเอียดเพิ่มเติม</h3>
+                <div class="mb-4">
+                    <h3 class="text-lg font-bold text-primary mb-2">รายละเอียดเพิ่มเติม</h3>
                     <div class="text-gray-700 leading-relaxed whitespace-pre-wrap"><?php echo htmlspecialchars($item['description']); ?></div>
                 </div>
 
                 <?php if (!empty($item['serial_number']) && isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
-                <div class="mb-8">
-                    <h3 class="text-lg font-bold text-primary mb-3">เลขซีเรียล / ข้อมูลระบุตัวตน</h3>
+                <div class="mb-4">
+                    <h3 class="text-lg font-bold text-primary mb-2">เลขซีเรียล / ข้อมูลระบุตัวตน</h3>
                     <div class="text-gray-700 bg-gray-100 px-4 py-2 rounded inline-block font-mono"><?php echo htmlspecialchars($item['serial_number']); ?></div>
                 </div>
                 <?php endif; ?>
 
-                <div class="mt-auto border-t border-gray-200 pt-6">
+                <?php 
+                $is_owner = (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']);
+                $is_admin = (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin');
+                $item_secret = !empty($item['secret_description']) ? $item['secret_description'] : (!empty($item['item_secret_info']) ? $item['item_secret_info'] : '');
+                $has_storage = !empty($item['storage_location']);
+                $has_secret = !empty($item_secret);
+
+                if (($is_owner || $is_admin) && ($has_storage || $has_secret)): 
+                ?>
+                    <div class="mb-4 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5">
+                        <div class="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                            <span class="text-xs font-semibold text-slate-700">ข้อมูลสำหรับผู้พบของ</span>
+                            <span class="text-xs text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">เฉพาะคุณที่มองเห็น</span>
+                        </div>
+                        
+                        <?php if ($has_storage): ?>
+                            <div class="text-xs md:text-sm">
+                                <span class="text-slate-500">สถานที่เก็บรักษาปัจจุบัน:</span>
+                                <span class="text-sm font-medium text-slate-800 ml-1"><?php echo htmlspecialchars($item['storage_location']); ?></span>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($has_secret): ?>
+                            <div class="text-xs md:text-sm">
+                                <span class="text-slate-500">รายละเอียดลับ / ตำหนิ:</span>
+                                <span class="text-sm font-medium text-slate-800 ml-1"><?php echo htmlspecialchars($item_secret); ?></span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+
+                <div class="mt-auto border-t border-gray-200 pt-4">
                     <h3 class="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider">ผู้ลงประกาศ</h3>
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0">
@@ -186,7 +218,6 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                         </div>
                         <div class="flex-grow">
                             <div class="font-bold text-gray-800 text-lg leading-tight"><?php echo htmlspecialchars($item['first_name'] . ' ' . $item['last_name']); ?></div>
-                            <!-- <div class="text-gray-500 text-sm mt-0.5">ผู้ลงประกาศ</div> -->
                         </div>
                         
                         <?php 
@@ -199,8 +230,28 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                         }
                         ?>
 
-                        <!-- ปุ่มแก้ไขสำหรับเจ้าของโพสต์ -->
-                        <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
+                        <!-- ปุ่ม Action ฝั่งขวา (Role-based Action Buttons) -->
+                        <?php if ($is_admin): ?>
+                            <div class="ml-auto flex items-center justify-end gap-2 flex-wrap text-sm">
+                                <?php if ($item['status'] === 'hidden'): ?>
+                                    <form action="<?php echo $base_url; ?>/actions/admin_manage_action.php" method="POST" class="inline">
+                                        <input type="hidden" name="action" value="restore_item">
+                                        <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
+                                        <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition shadow-sm text-sm whitespace-nowrap cursor-pointer">
+                                            เปิดประกาศ
+                                        </button>
+                                    </form>
+                                <?php else: ?>
+                                    <form action="<?php echo $base_url; ?>/actions/admin_manage_action.php" method="POST" class="inline">
+                                        <input type="hidden" name="action" value="hide_item">
+                                        <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
+                                        <button type="submit" onclick="return confirm('ต้องการซ่อนประกาศนี้ใช่หรือไม่?')" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition shadow-sm text-sm whitespace-nowrap cursor-pointer">
+                                            ซ่อนประกาศ
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        <?php elseif (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
                             <?php
                             $active_claim_stmt = $pdo->prepare("SELECT id FROM claims WHERE item_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled') LIMIT 1");
                             $active_claim_stmt->execute([$item['id']]);
@@ -215,28 +266,33 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                                     แก้ไขประกาศ
                                 </a>
                             <?php endif; ?>
-                        <?php endif; ?>
-
-                        <!-- ปุ่มยื่น Claim และ ปุ่มส่งข้อความ สำหรับผู้ใช้คนอื่น (ชิดขวา ml-auto) -->
-                        <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $item['user_id']): ?>
+                        <?php elseif (isset($_SESSION['user_id']) && $_SESSION['user_id'] != $item['user_id']): ?>
                             <div class="ml-auto flex items-center justify-end gap-2 flex-wrap text-sm">
                                 <?php if ($item['type'] === 'found'): ?>
                                     <?php if ($user_claim && in_array($user_claim['status'], ['pending', 'approved', 'under_admin_review', 'meeting_scheduled'])): ?>
-                                        <a href="<?php echo $base_url; ?>/pages/claim_detail.php?id=<?php echo $user_claim['id']; ?>" class="px-4 py-2 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition border border-slate-200 whitespace-nowrap">
-                                            ดูสถานะ Claim
-                                        </a>
-                                        <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $item['id']; ?>&receiver_id=<?php echo $item['user_id']; ?>&ref=item_detail" class="px-4 py-2 bg-accent text-white font-medium rounded-lg hover:bg-blue-600 transition shadow-sm whitespace-nowrap">
-                                            แชทกับผู้พบของ
-                                        </a>
+                                        <div class="flex items-center gap-2">
+                                            <a href="<?php echo $base_url; ?>/pages/claim_detail.php?id=<?php echo $user_claim['id']; ?>" class="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-lg border border-emerald-200/80 transition text-sm whitespace-nowrap shadow-sm">
+                                                ดูสถานะ Claim
+                                            </a>
+                                            <?php if (in_array($user_claim['status'], ['approved', 'meeting_scheduled', 'completed'])): ?>
+                                                <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $item['id']; ?>&receiver_id=<?php echo $item['user_id']; ?>&ref=item_detail" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition text-sm whitespace-nowrap shadow-sm">
+                                                    แชทสนทนา
+                                                </a>
+                                            <?php else: ?>
+                                                <button type="button" disabled title="ต้องได้รับการอนุมัติคำร้องจาก Admin ก่อน จึงจะแชทสนทนาได้" class="px-4 py-2 bg-slate-100 text-slate-400 font-medium rounded-lg border border-slate-200 cursor-not-allowed text-sm opacity-75 whitespace-nowrap">
+                                                    แชท (รอ Admin อนุมัติ)
+                                                </button>
+                                            <?php endif; ?>
+                                        </div>
                                     <?php elseif ($item['status'] === 'open'): ?>
-                                        <a href="<?php echo $base_url; ?>/pages/submit_claim.php?item_id=<?php echo $item['id']; ?>" class="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition shadow-sm whitespace-nowrap">
+                                        <a href="<?php echo $base_url; ?>/pages/submit_claim.php?item_id=<?php echo $item['id']; ?>" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition shadow-sm text-sm whitespace-nowrap">
                                             ยื่นคำร้อง Claim
                                         </a>
                                     <?php endif; ?>
                                 <?php else: ?>
-                                    <!-- ประกาศตามหาของหาย (Lost) สามารถส่งข้อความคุยได้ตามปกติ -->
-                                    <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $item['id']; ?>&receiver_id=<?php echo $item['user_id']; ?>&ref=item_detail" class="px-4 py-2 bg-accent text-white font-medium rounded-lg hover:bg-blue-600 transition shadow-sm whitespace-nowrap">
-                                        ส่งข้อความ
+                                    <!-- ประกาศตามหาของหาย (Lost): แสดงปุ่ม 'แจ้งพบของ' เพื่อไปยังฟอร์มกรอกหลักฐาน -->
+                                    <a href="<?php echo $base_url; ?>/pages/report_found.php?ref_lost_id=<?php echo $item['id']; ?>" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition shadow-sm text-sm whitespace-nowrap">
+                                        แจ้งพบของ
                                     </a>
                                 <?php endif; ?>
                             </div>
@@ -392,6 +448,59 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
 
     </div>
 </div>
+
+<!-- Modal รายงานประกาศ -->
+<div id="reportModal" class="fixed inset-0 z-50 hidden bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <h3 class="font-bold text-gray-900 text-sm flex items-center gap-2">
+                <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                รายงานประกาศไม่เหมาะสม
+            </h3>
+            <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <form action="<?php echo $base_url; ?>/actions/report_action.php" method="POST" class="p-6 space-y-4">
+            <input type="hidden" name="item_id" value="<?php echo $item['id']; ?>">
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1.5">สาเหตุการรายงาน</label>
+                <select name="reason_type" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-800 outline-none focus:border-accent focus:bg-white transition" required>
+                    <option value="">เลือกเหตุผลการรายงาน</option>
+                    <option value="spam">โพสต์สแปม หรือสร้างความรบกวน</option>
+                    <option value="fake_info">ข้อมูลเท็จ หรือแอบอ้างสิทธิ์</option>
+                    <option value="inappropriate">เนื้อหาหรือรูปภาพไม่เหมาะสม</option>
+                    <option value="fraud">สงสัยการทุจริตหรือฉ้อโกง</option>
+                    <option value="other">เหตุผลอื่นๆ</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1.5">รายละเอียดเพิ่มเติม</label>
+                <textarea name="details" rows="3" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-800 outline-none focus:border-accent focus:bg-white transition resize-none" placeholder="ระบุรายละเอียดเพิ่มเติมเพื่อช่วยในการตรวจสอบ"></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <button type="button" onclick="closeReportModal()" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-xl text-xs font-semibold transition">
+                    ยกเลิก
+                </button>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-xl text-xs font-semibold transition shadow-sm">
+                    ส่งรายงาน
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openReportModal() {
+    document.getElementById('reportModal').classList.remove('hidden');
+}
+function closeReportModal() {
+    document.getElementById('reportModal').classList.add('hidden');
+}
+</script>
 
 <?php
 require_once '../includes/footer.php';

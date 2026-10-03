@@ -33,11 +33,6 @@ try {
                 <a href="<?php echo $base_url; ?>/pages/claims.php" class="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition shadow-sm inline-flex items-center">
                     รายการ Claim ของฉัน
                 </a>
-                <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
-                    <a href="<?php echo $base_url; ?>/pages/admin/admin_claims.php" class="px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-900 transition shadow-sm flex items-center gap-1.5">
-                        ศูนย์จัดการ Claim (Admin)
-                    </a>
-                <?php endif; ?>
                 <a href="<?php echo $base_url; ?>/pages/report_lost.php" class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-secondary transition shadow-sm hidden sm:inline-block">แจ้งของหาย</a>
                 <a href="<?php echo $base_url; ?>/pages/report_found.php" class="px-4 py-2 border border-primary text-primary text-sm font-medium rounded-lg hover:bg-primary hover:text-white transition bg-white hidden sm:inline-block">แจ้งพบของ</a>
             </div>

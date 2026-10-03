@@ -267,13 +267,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // ---------------------------------------
 
-        $_SESSION['success'] = "บันทึกประกาศของคุณเรียบร้อยแล้ว!";
-        header("Location: ../pages/browse.php");
+        // Dynamic redirect URL after successful creation
+        $redirect_target = $_POST['redirect_url'] ?? '';
+        if (empty($redirect_target)) {
+            if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
+                $redirect_target = ($type === 'lost') ? '../pages/admin/admin_itemslost.php' : '../pages/admin/admin_itemsfound.php';
+            } else {
+                $redirect_target = '../pages/browse.php';
+            }
+        }
+
+        $_SESSION['success'] = "บันทึกประกาศเรียบร้อยแล้ว!";
+        header("Location: " . $redirect_target);
         exit;
 
     } catch (PDOException $e) {
+        $error_redirect = $_POST['redirect_url'] ?? "../pages/report_{$type}.php";
         $_SESSION['error'] = "เกิดข้อผิดพลาดของฐานข้อมูล: " . $e->getMessage();
-        header("Location: ../pages/report_{$type}.php");
+        header("Location: " . $error_redirect);
         exit;
     }
 } else {

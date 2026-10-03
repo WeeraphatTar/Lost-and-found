@@ -63,8 +63,8 @@ if (!$item) {
     exit;
 }
 
-// ตรวจสอบสิทธิ์การเข้าถึงแชทสำหรับประกาศประเภท 'found':
-// เฉพาะเจ้าของโพสต์ (Finder), ผู้ยื่น Claim บนสิ่งของนี้, หรือ Admin เท่านั้นที่แชทได้
+// ตรวจสอบสิทธิ์การเข้าถึงแชท:
+// ป้องกันไม่ให้ Admin แอบเข้าดูประวัติแชทของผู้ใช้งาน เพื่อความเป็นส่วนตัวและความปลอดภัยของข้อมูล (Data Privacy)
 $is_item_owner = ($item['user_id'] == $current_user_id);
 $is_admin_user = (($_SESSION['user_role'] ?? '') === 'admin');
 
@@ -73,18 +73,56 @@ if ($chat_user1 <= 0 || $chat_user2 <= 0) {
     $chat_user2 = $receiver_id;
 }
 
-$is_admin_monitor = ($is_admin_user && $current_user_id != $chat_user1 && $current_user_id != $chat_user2);
+// ตรวจสอบว่าผู้ใช้งานปัจจุบันเป็นคู่สนทนาตัวจริง (Claimant หรือ Finder) หรือไม่
+$is_participant = ($current_user_id == $chat_user1 || $current_user_id == $chat_user2);
 
-if ($item['type'] === 'found' && !$is_item_owner && !$is_admin_user) {
-    // ตรวจสอบว่าผู้ใช้คนนี้ได้ยื่น Claim ไว้บนสิ่งของนี้หรือไม่
-    $claim_stmt = $pdo->prepare("SELECT id FROM claims WHERE item_id = ? AND claimant_id = ? LIMIT 1");
-    $claim_stmt->execute([$item_id, $current_user_id]);
-    $has_claimed = $claim_stmt->fetch();
-
-    if (!$has_claimed) {
-        $_SESSION['error'] = "คุณต้องยื่นคำร้องขอ Claim สิ่งของชิ้นนี้ก่อน จึงจะสามารถเปิดแชทสนทนากับผู้พบของได้";
-        echo "<script>window.location.href = '".$base_url."/pages/item_detail.php?id={$item_id}';</script>";
+if (!$is_participant) {
+    if ($is_admin_user) {
+        $_SESSION['error'] = "ไม่อนุญาตให้ผู้ดูแลระบบ (Admin) เข้าถึงห้องแชทส่วนตัวของผู้ใช้งานเพื่อคุ้มครองความเป็นส่วนตัวของข้อมูล";
+        echo "<script>window.location.href = '".$base_url."/pages/admin/admin_claims.php';</script>";
         exit;
+    } else {
+        $_SESSION['error'] = "คุณไม่มีสิทธิ์เข้าถึงห้องแชทนี้";
+        header("Location: messages.php");
+        exit;
+    }
+}
+
+$is_admin_monitor = false;
+
+if (!$is_admin_user) {
+    // Check for a claim on this item involving the two participants
+    $claim_check_sql = "
+        SELECT id, status 
+        FROM claims 
+        WHERE item_id = ? 
+          AND ((claimant_id = ? AND finder_id = ?) OR (claimant_id = ? AND finder_id = ?))
+        ORDER BY id DESC LIMIT 1
+    ";
+    $claim_check_stmt = $pdo->prepare($claim_check_sql);
+    $claim_check_stmt->execute([$item_id, $chat_user1, $chat_user2, $chat_user2, $chat_user1]);
+    $active_claim = $claim_check_stmt->fetch();
+
+    if ($item['type'] === 'found' || $active_claim) {
+        if (!$active_claim) {
+            $_SESSION['error'] = "คุณต้องยื่นคำร้องขอรับคืนสิ่งของชิ้นนี้และรอผู้ดูแลระบบ (Admin) อนุมัติก่อน จึงจะสามารถเปิดแชทสนทนากันได้";
+            echo "<script>window.location.href = '".$base_url."/pages/item_detail.php?id={$item_id}';</script>";
+            exit;
+        }
+
+        if (in_array($active_claim['status'], ['pending', 'under_admin_review'])) {
+            $_SESSION['error'] = "ต้องได้รับการอนุมัติคำร้องขอรับคืนจากผู้ดูแลระบบ (Admin) ก่อน จึงจะสามารถเปิดแชทสนทนากันได้";
+            $back_redirect = ($ref === 'claim_detail' && $claim_id > 0) ? "claim_detail.php?id=" . $claim_id : "claims.php";
+            echo "<script>window.location.href = '".$base_url."/pages/" . $back_redirect . "';</script>";
+            exit;
+        }
+
+        if (in_array($active_claim['status'], ['rejected', 'cancelled_mismatch'])) {
+            $_SESSION['error'] = "คำร้องขอรับคืนนี้ถูกปฏิเสธหรือยกเลิกเรียบร้อยแล้ว ไม่สามารถเปิดแชทสนทนาได้";
+            $back_redirect = ($ref === 'claim_detail' && $claim_id > 0) ? "claim_detail.php?id=" . $claim_id : "claims.php";
+            echo "<script>window.location.href = '".$base_url."/pages/" . $back_redirect . "';</script>";
+            exit;
+        }
     }
 }
 
@@ -110,10 +148,30 @@ if (!$is_admin_monitor) {
 
 // Get message history
 $messages = get_messages($pdo, $item_id, $chat_user1, $chat_user2);
+
+$is_admin_mode = (($_SESSION['user_role'] ?? '') === 'admin');
 ?>
 
+<?php if ($is_admin_mode): ?>
+<div class="h-[calc(100vh-5rem)] bg-slate-50 flex flex-col md:flex-row flex-grow font-sans overflow-hidden">
+    
+    <!-- Left Sidebar Column -->
+    <?php 
+    $active_tab = 'claims';
+    require_once '../includes/admin_sidebar.php'; 
+    ?>
+
+    <!-- Right Main Content Area -->
+    <main class="flex-1 p-6 md:p-8 overflow-y-auto">
+        <div class="w-full flex flex-col flex-grow">
+
+
+
+<?php else: ?>
 <div class="py-8 bg-background flex-grow flex flex-col">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col h-full min-h-[600px]">
+<?php endif; ?>
+
         
         <!-- Chat Header -->
         <div class="bg-white rounded-t-xl shadow-sm border border-gray-200 p-4 sm:p-6 flex items-center gap-4">
@@ -136,45 +194,24 @@ $messages = get_messages($pdo, $item_id, $chat_user1, $chat_user2);
                 <h2 class="font-bold text-primary truncate leading-tight"><?php echo htmlspecialchars($item['title']); ?></h2>
                 <div class="text-sm text-gray-500 flex items-center">
                     <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                    <?php if ($is_admin_monitor): ?>
-                        คู่สนทนา: <span class="font-semibold text-gray-700 ml-1"><?php echo htmlspecialchars($u1_info['first_name'] . ' ' . $u1_info['last_name']); ?></span> <span class="mx-1 text-gray-400">↔</span> <span class="font-semibold text-gray-700"><?php echo htmlspecialchars($u2_info['first_name'] . ' ' . $u2_info['last_name']); ?></span>
-                    <?php else: ?>
-                        คุยกับ: <?php echo htmlspecialchars(($current_user_id == $chat_user1 ? $u2_info['first_name'] . ' ' . $u2_info['last_name'] : $u1_info['first_name'] . ' ' . $u1_info['last_name'])); ?>
-                    <?php endif; ?>
+                    คุยกับ: <?php echo htmlspecialchars(($current_user_id == $chat_user1 ? $u2_info['first_name'] . ' ' . $u2_info['last_name'] : $u1_info['first_name'] . ' ' . $u1_info['last_name'])); ?>
                 </div>
             </div>
             
             <?php
-            // ตรวจสอบ Claim ระหว่างคู่นี้เกี่ยวกับสิ่งของนี้
+            // ตรวจสอบ Claim ระหว่างคู่นี้เกี่ยวกับสิ่งของนี้เพื่อควบคุมการปิดแชท
             $chat_claim_stmt = $pdo->prepare("SELECT id, status FROM claims WHERE item_id = ? AND (claimant_id = ? OR finder_id = ?) ORDER BY id DESC LIMIT 1");
             $chat_claim_stmt->execute([$item_id, $chat_user1, $chat_user2]);
             $chat_claim = $chat_claim_stmt->fetch();
             $is_claim_closed = ($chat_claim && in_array($chat_claim['status'], ['completed', 'rejected', 'cancelled', 'cancelled_mismatch']));
             ?>
 
-            <div class="flex items-center gap-2 flex-wrap">
-                <?php if ($chat_claim): ?>
-                    <a href="claim_detail.php?id=<?php echo $chat_claim['id']; ?>" class="px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition border border-emerald-200 flex items-center gap-1">
-                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        ดูสถานะ Claim (#CLM-<?php echo str_pad($chat_claim['id'], 5, '0', STR_PAD_LEFT); ?>)
-                    </a>
-                <?php endif; ?>
-
-                <a href="item_detail.php?id=<?php echo $item_id; ?>" class="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-primary bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition shadow-sm">
+            <div class="flex items-center">
+                <a href="item_detail.php?id=<?php echo $item_id; ?>" class="px-4 py-2 text-sm font-medium text-primary bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition shadow-xs">
                     ดูประกาศ
                 </a>
             </div>
         </div>
-
-        <?php if ($is_admin_monitor): ?>
-            <div class="bg-gray-100/90 border-x border-b border-gray-200 px-4 sm:px-6 py-2.5 text-xs text-gray-500 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                    <span class="font-normal text-gray-600">ผู้ดูแลระบบกำลังเข้าชมประวัติการสนทนานี้</span>
-                </div>
-                <span class="text-[10px] text-gray-400 font-mono tracking-wider uppercase">ADMIN READ-ONLY</span>
-            </div>
-        <?php endif; ?>
 
         <!-- Chat History -->
         <div id="chat-messages" class="bg-gray-50 border-x border-gray-200 flex-grow overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 max-h-[500px]">
@@ -186,19 +223,53 @@ $messages = get_messages($pdo, $item_id, $chat_user1, $chat_user2);
                     <p class="text-gray-500 text-sm">ยังไม่มีข้อความ เริ่มการสนทนาได้เลย!</p>
                 </div>
             <?php else: ?>
+                <?php 
+                    $thai_months = [1 => 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                    $last_date = null;
+                    $today_date = date('Y-m-d');
+                    $yesterday_date = date('Y-m-d', strtotime('-1 day'));
+                ?>
                 <?php foreach ($messages as $msg): ?>
                     <?php 
+                        $msg_timestamp = strtotime($msg['created_at']);
+                        $msg_date_str = date('Y-m-d', $msg_timestamp);
                         $is_me = ($msg['sender_id'] == $current_user_id);
-                        $msg_time = date('H:i', strtotime($msg['created_at']));
+                        $msg_time = date('H:i', $msg_timestamp) . ' น.';
                     ?>
+
+                    <?php if ($msg_date_str !== $last_date): ?>
+                        <?php 
+                            if ($msg_date_str === $today_date) {
+                                $display_date = 'วันนี้';
+                            } elseif ($msg_date_str === $yesterday_date) {
+                                $display_date = 'เมื่อวานนี้';
+                            } else {
+                                $day = date('j', $msg_timestamp);
+                                $month = $thai_months[(int)date('n', $msg_timestamp)];
+                                $year = (int)date('Y', $msg_timestamp) + 543;
+                                $display_date = "วันที่ {$day} {$month} {$year}";
+                            }
+                            $last_date = $msg_date_str;
+                        ?>
+                        <div class="flex justify-center my-3">
+                            <span class="text-xs text-slate-500 bg-slate-200/70 font-medium rounded-full px-3 py-1 shadow-2xs">
+                                <?php echo $display_date; ?>
+                            </span>
+                        </div>
+                    <?php endif; ?>
+
                     <div class="flex <?php echo $is_me ? 'justify-end' : 'justify-start'; ?>">
                         <div class="max-w-[80%] sm:max-w-[70%]">
-                            <div class="flex items-center gap-2 mb-1 <?php echo $is_me ? 'justify-end' : 'justify-start'; ?>">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase"><?php echo $is_me ? 'คุณ' : htmlspecialchars($msg['sender_name']); ?></span>
-                                <span class="text-[10px] text-gray-400"><?php echo $msg_time; ?></span>
-                            </div>
-                            <div class="px-4 py-2.5 rounded-2xl shadow-sm text-sm <?php echo $is_me ? 'bg-accent text-white rounded-tr-none' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none'; ?>">
+                            <?php if (!$is_me): ?>
+                                <div class="flex items-center gap-2 mb-1 justify-start">
+                                    <span class="text-[10px] font-bold text-gray-500"><?php echo htmlspecialchars($msg['sender_name']); ?></span>
+                                </div>
+                            <?php endif; ?>
+                            <div class="px-4 py-2.5 rounded-2xl shadow-xs text-sm <?php echo $is_me ? 'bg-accent text-white rounded-tr-none' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none'; ?>">
                                 <?php echo nl2br(htmlspecialchars($msg['content'])); ?>
+                            </div>
+                            <div class="mt-1 px-1 flex <?php echo $is_me ? 'justify-end' : 'justify-start'; ?>">
+                                <span class="text-[10px] text-slate-400 font-medium"><?php echo $msg_time; ?></span>
                             </div>
                         </div>
                     </div>
@@ -208,11 +279,7 @@ $messages = get_messages($pdo, $item_id, $chat_user1, $chat_user2);
 
         <!-- Chat Input -->
         <div class="bg-white rounded-b-xl shadow-sm border border-gray-200 p-4 border-t-0">
-            <?php if ($is_admin_monitor): ?>
-                <div class="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center text-xs text-gray-500 font-normal">
-                    ผู้ดูแลระบบเข้าชมประวัติการสนทนาในโหมดอ่านอย่างเดียว (Read-Only)
-                </div>
-            <?php elseif ($is_claim_closed): ?>
+            <?php if ($is_claim_closed): ?>
                 <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center text-xs font-semibold text-gray-600 flex items-center justify-center gap-2">
                     <svg class="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                     <span>
@@ -276,6 +343,16 @@ $messages = get_messages($pdo, $item_id, $chat_user1, $chat_user2);
     }
 </script>
 
+<?php if ($is_admin_mode): ?>
+        </div>
+    </main>
+</div>
+<?php else: ?>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php
 require_once '../includes/footer.php';
 ?>
+

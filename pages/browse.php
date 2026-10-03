@@ -12,7 +12,7 @@ $sort = isset($_GET['sort']) ? $_GET['sort'] : 'latest';
 // Pagination settings
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 if ($page < 1) $page = 1;
-$limit = 15; // 5 rows * 3 items per row
+$limit = 9; // 3 rows * 3 items per row
 
 // Helper function to build page URLs preserving filters
 function getPageUrl($page_num) {
@@ -139,18 +139,8 @@ try {
                     <h3 class="font-semibold text-primary mb-3">หมวดหมู่</h3>
                     <div class="space-y-2">
                         <?php 
-                        $categories = [
-                            'electronics' => 'อุปกรณ์อิเล็กทรอนิกส์',
-                            'walletandcash' => 'กระเป๋าสตางค์และเงินสด', 
-                            'cardanddocument' => 'บัตรและเอกสารสำคัญ',
-                            'keyandkeycard' => 'กุญแจและคีย์การ์ด',
-                            'bagandluggage' => 'กระเป๋าและสัมภาระ',
-                            'clothingandjewelry' => 'เครื่องแต่งกายและเครื่องประดับ',
-                            'studymaterialandstationery' => 'อุปกรณ์การเรียนและเครื่องเขียน',
-                            'personalbelonging' => 'ของใช้ส่วนตัว',
-                            'vehicleandaccessory' => 'ยานพาหนะและอุปกรณ์เสริม',
-                            'others' => 'อื่นๆ'
-                        ];
+                        require_once '../helpers/category_helper.php';
+                        $categories = get_active_categories($pdo);
                         foreach ($categories as $val => $label) {
                             $checked = in_array($val, $category_filter) ? 'checked' : '';
                             echo '<label class="flex items-center text-sm text-gray-700 cursor-pointer">

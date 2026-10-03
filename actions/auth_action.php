@@ -81,12 +81,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             // ดึงข้อมูลผู้ใช้จากฐานข้อมูล
-            $stmt = $pdo->prepare("SELECT id, first_name, last_name, password_hash, role FROM users WHERE email = ?");
+            $stmt = $pdo->prepare("SELECT id, first_name, last_name, password_hash, role, is_banned, ban_reason FROM users WHERE email = ?");
             $stmt->execute([$email]);
             $user = $stmt->fetch();
 
             // ตรวจสอบว่าพบผู้ใช้ และรหัสผ่านถูกต้องหรือไม่
             if ($user && password_verify($password, $user['password_hash'])) {
+                // ตรวจสอบสถานะการถูกระงับสิทธิ์
+                if (!empty($user['is_banned'])) {
+                    $reason_text = !empty($user['ban_reason']) ? " เนื่องจาก: " . $user['ban_reason'] : "";
+                    $_SESSION['error'] = "บัญชีนี้ถูกระงับการใช้งาน" . $reason_text;
+                    header("Location: ../pages/login.php");
+                    exit;
+                }
+
                 // รหัสผ่านถูกต้อง สร้าง Session
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['user_name'] = $user['first_name'];
@@ -103,7 +111,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     setcookie('remember_user', $user['id'], time() + (86400 * 30), "/");
                 }
                 
-                header("Location: ../index.php");
+                if ($user['role'] === 'admin') {
+                    header("Location: ../pages/admin/admin_dashboard.php");
+                } else {
+                    header("Location: ../index.php");
+                }
                 exit;
             } else {
                 $_SESSION['error'] = "อีเมลหรือรหัสผ่านไม่ถูกต้อง";

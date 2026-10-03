@@ -3,6 +3,7 @@ session_start();
 $base_url = 'http://localhost/lost-and-found';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/notification_helper.php';
+require_once __DIR__ . '/../helpers/admin_log_helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     $_SESSION['error'] = "กรุณาเข้าสู่ระบบก่อนดำเนินการ";
@@ -211,6 +212,15 @@ switch ($action) {
             exit;
         }
 
+        if (empty($admin_notes)) {
+            $_SESSION['error'] = "กรุณากรอกบันทึกเหตุผลก่อนดำเนินการอนุมัติหรือปฏิเสธ";
+            $redirect_target = (isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], 'claim_detail.php') !== false)
+                ? $base_url . "/pages/claim_detail.php?id=" . $claim_id
+                : $base_url . "/pages/admin/admin_claims.php";
+            header("Location: " . $redirect_target);
+            exit;
+        }
+
         if ($decision === 'approve') {
             $pdo->prepare("UPDATE claims SET status = 'approved', admin_id = ?, admin_notes = ?, admin_action_at = NOW(), updated_at = NOW() WHERE id = ?")
                 ->execute([$user_id, $admin_notes, $claim_id]);
@@ -235,6 +245,7 @@ switch ($action) {
             add_notification($pdo, $claim['claimant_id'], "Admin ได้อนุมัติคำร้องขอ Claim '[{$claim['title']}]' เรียบร้อยแล้ว สามารถนัดรับสิ่งของได้", "pages/claim_detail.php?id=" . $claim_id);
             add_notification($pdo, $claim['finder_id'], "Admin ได้ตรวจสอบและอนุมัติคำร้องขอ Claim '[{$claim['title']}]' แล้ว โปรดดำเนินนัดส่งมอบ", "pages/claim_detail.php?id=" . $claim_id);
             
+            log_admin_action($pdo, $user_id, 'approve_claim', "อนุมัติคำร้อง Claim ID #{$claim_id} สำหรับประกาศ '{$claim['title']}'");
             $_SESSION['success'] = "อนุมัติคำร้องขอ Claim สำเร็จแล้ว";
 
         } elseif ($decision === 'reject') {
@@ -248,10 +259,16 @@ switch ($action) {
             add_notification($pdo, $claim['claimant_id'], "Admin ได้ปฏิเสธคำร้องขอ Claim '[{$claim['title']}]' {$reason_text}", "pages/claim_detail.php?id=" . $claim_id);
             add_notification($pdo, $claim['finder_id'], "Admin ได้ปฏิเสธคำร้องขอ Claim '[{$claim['title']}]' แล้ว ประกาศถูกเปิดให้ค้นหาตามปกติ", "pages/claim_detail.php?id=" . $claim_id);
 
+            log_admin_action($pdo, $user_id, 'reject_claim', "ปฏิเสธคำร้อง Claim ID #{$claim_id} สำหรับประกาศ '{$claim['title']}'");
+
             $_SESSION['success'] = "ปฏิเสธคำร้องขอ Claim และเปิดประกาศกลับเป็น Open สำเร็จแล้ว";
         }
 
-        header("Location: " . $base_url . "/pages/admin/admin_claims.php");
+        $redirect_target = (isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], 'claim_detail.php') !== false)
+            ? $base_url . "/pages/claim_detail.php?id=" . $claim_id
+            : $base_url . "/pages/admin/admin_claims.php";
+
+        header("Location: " . $redirect_target);
         exit;
 
     // ----------------------------------------------------

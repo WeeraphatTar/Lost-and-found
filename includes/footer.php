@@ -1,8 +1,14 @@
+<?php 
+$is_admin_page_footer = (strpos($_SERVER['SCRIPT_NAME'] ?? '', '/pages/admin/') !== false);
+?>
     <!-- Footer -->
-    <footer class="bg-primary text-white py-8 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <p class="text-gray-400 text-sm">&copy; <?php echo date('Y'); ?> Lost & Found System. All rights reserved.</p>
-        </div>
+    <?php if (!$is_admin_page_footer): ?>
+        <footer class="bg-primary text-white py-8 mt-auto">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <p class="text-gray-400 text-sm">&copy; <?php echo date('Y'); ?> Lost & Found System. All rights reserved.</p>
+            </div>
+        </footer>
+    <?php endif; ?>
     <!-- Global Double Form Submission Protection Script -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {

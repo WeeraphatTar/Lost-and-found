@@ -21,23 +21,46 @@ $conversations = get_conversations($pdo, $user_id);
         </h1>
 
         <?php if (empty($conversations)): ?>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-                <div class="w-20 h-20 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+            <!-- Empty State for General User -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 sm:p-12 text-center my-4">
+                <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-5 border border-blue-100 shadow-2xs">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </div>
-                <h2 class="text-xl font-bold text-gray-700 mb-2">ยังไม่มีการสนทนา</h2>
-                <p class="text-gray-500 mb-8">คุณยังไม่ได้เริ่มการสนทนากับใคร หรือยังไม่มีใครส่งข้อความหาคุณ</p>
-                <a href="<?php echo $base_url; ?>/pages/browse.php" class="inline-flex items-center px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-secondary transition shadow-sm">
-                    ไปที่รายการประกาศ
+                <h2 class="text-xl font-bold text-gray-800 mb-2">ยังไม่มีห้องสนทนาที่เปิดใช้งาน</h2>
+                <p class="text-sm text-gray-500 max-w-lg mx-auto mb-8 leading-relaxed">
+                    ห้องสนทนาจะเปิดขึ้นโดยอัตโนมัติเมื่อคำร้องขอรับคืนสิ่งของ (Claim) ของคุณได้รับการตรวจสอบและอนุมัติจากผู้ดูแลระบบเรียบร้อยแล้วเท่านั้น
+                </p>
+                <a href="<?php echo $base_url; ?>/pages/claims.php" class="inline-flex items-center px-6 py-3 bg-primary hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition shadow-sm gap-2">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    ตรวจสอบสถานะคำร้องของฉัน
                 </a>
             </div>
         <?php else: ?>
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden divide-y divide-gray-100">
+                <?php 
+                    $thai_months = [1 => 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                    $today_date = date('Y-m-d');
+                    $yesterday_date = date('Y-m-d', strtotime('-1 day'));
+                ?>
                 <?php foreach ($conversations as $conv): ?>
                     <?php 
                         $other_user_id = ($conv['sender_id'] == $user_id) ? $conv['receiver_id'] : $conv['sender_id'];
                         $is_unread = ($conv['unread_count'] > 0);
-                        $last_msg_date = date('d M Y H:i', strtotime($conv['created_at']));
+                        
+                        $conv_ts = strtotime($conv['created_at']);
+                        $conv_date = date('Y-m-d', $conv_ts);
+                        
+                        if ($conv_date === $today_date) {
+                            $last_msg_date = date('H:i', $conv_ts) . ' น.';
+                        } elseif ($conv_date === $yesterday_date) {
+                            $last_msg_date = 'เมื่อวาน ' . date('H:i', $conv_ts) . ' น.';
+                        } else {
+                            $day = date('j', $conv_ts);
+                            $month = $thai_months[(int)date('n', $conv_ts)];
+                            $year = (int)date('Y', $conv_ts) + 543;
+                            $last_msg_date = "{$day} {$month} {$year}";
+                        }
+
                         $item_img = !empty($conv['item_image']) ? $base_url . '/' . htmlspecialchars($conv['item_image']) : '';
                     ?>
                     <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $conv['item_id']; ?>&receiver_id=<?php echo $other_user_id; ?>&ref=messages" class="block p-4 sm:p-6 hover:bg-blue-50 transition relative <?php echo $is_unread ? 'bg-blue-50/30' : ''; ?>">

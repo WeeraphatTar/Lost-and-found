@@ -41,14 +41,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
 
-            // ตรวจสอบว่าคำร้องปิดการสนทนาไปแล้วหรือไม่ (completed, rejected, cancelled)
+            // ตรวจสอบสถานะคำร้อง Claim ก่อนอนุญาตให้ส่งข้อความ
             $claim_check_stmt = $pdo->prepare("SELECT status FROM claims WHERE item_id = ? AND ((claimant_id = ? AND finder_id = ?) OR (claimant_id = ? AND finder_id = ?)) ORDER BY id DESC LIMIT 1");
             $claim_check_stmt->execute([$item_id, $sender_id, $receiver_id, $receiver_id, $sender_id]);
-            $closed_claim = $claim_check_stmt->fetch();
-            if ($closed_claim && in_array($closed_claim['status'], ['completed', 'rejected', 'cancelled', 'cancelled_mismatch'])) {
-                $_SESSION['error'] = "การสนทนานี้ถูกปิดโดยอัตโนมัติเนื่องจากคำร้องเสร็จสมบูรณ์หรือถูกยกเลิกแล้ว";
-                header("Location: $redirect_url");
-                exit;
+            $active_claim = $claim_check_stmt->fetch();
+
+            if (!$is_admin_user && ($item_info['type'] === 'found' || $active_claim)) {
+                if (!$active_claim || !in_array($active_claim['status'], ['approved', 'meeting_scheduled', 'completed'])) {
+                    if ($active_claim && in_array($active_claim['status'], ['pending', 'under_admin_review'])) {
+                        $_SESSION['error'] = "ต้องได้รับการอนุมัติคำร้องขอรับคืนจากผู้ดูแลระบบ (Admin) ก่อน จึงจะสามารถส่งข้อความได้";
+                    } else {
+                        $_SESSION['error'] = "ไม่สามารถส่งข้อความได้ เนื่องจากคำร้องยังไม่ได้รับการอนุมัติ หรือถูกยกเลิกแล้ว";
+                    }
+                    header("Location: $redirect_url");
+                    exit;
+                }
             }
 
             // Save message

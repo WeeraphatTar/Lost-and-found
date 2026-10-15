@@ -35,7 +35,12 @@ $chat_user1 = 0;
 $chat_user2 = 0;
 
 if ($claim_id > 0) {
-    $claim_info_stmt = $pdo->prepare("SELECT finder_id, claimant_id FROM claims WHERE id = ?");
+    $claim_info_stmt = $pdo->prepare("
+        SELECT c.user_id as claimant_id, i.user_id as finder_id 
+        FROM claims c 
+        JOIN items i ON c.item_id = i.id 
+        WHERE c.id = ?
+    ");
     $claim_info_stmt->execute([$claim_id]);
     $claim_info = $claim_info_stmt->fetch();
     if ($claim_info) {
@@ -53,7 +58,7 @@ if ($item_id <= 0 || ($receiver_id <= 0 && ($chat_user1 <= 0 || $chat_user2 <= 0
 }
 
 // ตรวจสอบข้อมูลสิ่งของ
-$stmt = $pdo->prepare("SELECT type, title, image_path, user_id FROM items WHERE id = ?");
+$stmt = $pdo->prepare("SELECT type, title, image_path, user_id, status FROM items WHERE id = ?");
 $stmt->execute([$item_id]);
 $item = $stmt->fetch();
 
@@ -73,6 +78,24 @@ if ($chat_user1 <= 0 || $chat_user2 <= 0) {
     $chat_user2 = $receiver_id;
 }
 
+// ตรวจสอบข้อมูลคู่สนทนาสำหรับแสดงใน UI และตรวจสอบสิทธิ์
+$u1_stmt = $pdo->prepare("SELECT id, first_name, last_name, role FROM users WHERE id = ?");
+$u1_stmt->execute([$chat_user1]);
+$u1_info = $u1_stmt->fetch();
+
+$u2_stmt = $pdo->prepare("SELECT id, first_name, last_name, role FROM users WHERE id = ?");
+$u2_stmt->execute([$chat_user2]);
+$u2_info = $u2_stmt->fetch();
+
+if (!$u1_info || !$u2_info) {
+    $_SESSION['error'] = "ไม่พบข้อมูลคู่สนทนาที่อ้างถึง";
+    header("Location: messages.php");
+    exit;
+}
+
+$is_admin_user = (($_SESSION['user_role'] ?? '') === 'admin');
+$is_conversation_with_admin = (($u1_info['role'] ?? '') === 'admin' || ($u2_info['role'] ?? '') === 'admin');
+
 // ตรวจสอบว่าผู้ใช้งานปัจจุบันเป็นคู่สนทนาตัวจริง (Claimant หรือ Finder) หรือไม่
 $is_participant = ($current_user_id == $chat_user1 || $current_user_id == $chat_user2);
 
@@ -90,14 +113,18 @@ if (!$is_participant) {
 
 $is_admin_monitor = false;
 
-if (!$is_admin_user) {
+// การควบคุมสิทธิ์การเข้าห้องแชท:
+// 1. ถ้าเป็นการสนทนาระหว่าง User กับ Admin -> อนุญาตให้เข้าแชทตอบกลับได้ทันที (Bypass status check)
+// 2. ถ้าเป็นการสนทนาระหว่าง User กับ User -> ต้องได้รับการอนุมัติคำร้อง (status === 'approved') ก่อนเท่านั้น
+if (!$is_admin_user && !$is_conversation_with_admin) {
     // Check for a claim on this item involving the two participants
     $claim_check_sql = "
-        SELECT id, status 
-        FROM claims 
-        WHERE item_id = ? 
-          AND ((claimant_id = ? AND finder_id = ?) OR (claimant_id = ? AND finder_id = ?))
-        ORDER BY id DESC LIMIT 1
+        SELECT c.id, c.status 
+        FROM claims c
+        JOIN items i ON c.item_id = i.id
+        WHERE c.item_id = ? 
+          AND ((c.user_id = ? AND i.user_id = ?) OR (c.user_id = ? AND i.user_id = ?))
+        ORDER BY c.id DESC LIMIT 1
     ";
     $claim_check_stmt = $pdo->prepare($claim_check_sql);
     $claim_check_stmt->execute([$item_id, $chat_user1, $chat_user2, $chat_user2, $chat_user1]);
@@ -126,21 +153,6 @@ if (!$is_admin_user) {
     }
 }
 
-// ตรวจสอบข้อมูลคู่สนทนาสำหรับแสดงใน UI
-$u1_stmt = $pdo->prepare("SELECT first_name, last_name FROM users WHERE id = ?");
-$u1_stmt->execute([$chat_user1]);
-$u1_info = $u1_stmt->fetch();
-
-$u2_stmt = $pdo->prepare("SELECT first_name, last_name FROM users WHERE id = ?");
-$u2_stmt->execute([$chat_user2]);
-$u2_info = $u2_stmt->fetch();
-
-if (!$u1_info || !$u2_info) {
-    $_SESSION['error'] = "ไม่พบข้อมูลคู่สนทนาที่อ้างถึง";
-    header("Location: messages.php");
-    exit;
-}
-
 // Mark messages as read (เฉพาะผู้ใช้งานจริง)
 if (!$is_admin_monitor) {
     mark_messages_as_read($pdo, $item_id, $current_user_id, $receiver_id);
@@ -150,6 +162,9 @@ if (!$is_admin_monitor) {
 $messages = get_messages($pdo, $item_id, $chat_user1, $chat_user2);
 
 $is_admin_mode = (($_SESSION['user_role'] ?? '') === 'admin');
+$partner_info = ($current_user_id == $chat_user1) ? $u2_info : $u1_info;
+$partner_name = trim(($partner_info['first_name'] ?? '') . ' ' . ($partner_info['last_name'] ?? ''));
+$is_partner_admin = (($partner_info['role'] ?? '') === 'admin');
 ?>
 
 <?php if ($is_admin_mode): ?>
@@ -165,14 +180,11 @@ $is_admin_mode = (($_SESSION['user_role'] ?? '') === 'admin');
     <main class="flex-1 p-6 md:p-8 overflow-y-auto">
         <div class="w-full flex flex-col flex-grow">
 
-
-
 <?php else: ?>
 <div class="py-8 bg-background flex-grow flex flex-col">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col h-full min-h-[600px]">
 <?php endif; ?>
 
-        
         <!-- Chat Header -->
         <div class="bg-white rounded-t-xl shadow-sm border border-gray-200 p-4 sm:p-6 flex items-center gap-4">
             <a href="<?php echo htmlspecialchars($back_url); ?>" class="p-2 hover:bg-gray-100 rounded-full transition" title="ย้อนกลับ">
@@ -194,16 +206,25 @@ $is_admin_mode = (($_SESSION['user_role'] ?? '') === 'admin');
                 <h2 class="font-bold text-primary truncate leading-tight"><?php echo htmlspecialchars($item['title']); ?></h2>
                 <div class="text-sm text-gray-500 flex items-center">
                     <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                    คุยกับ: <?php echo htmlspecialchars(($current_user_id == $chat_user1 ? $u2_info['first_name'] . ' ' . $u2_info['last_name'] : $u1_info['first_name'] . ' ' . $u1_info['last_name'])); ?>
+                    <span>คุยกับ: <?php echo htmlspecialchars($partner_name); ?></span>
                 </div>
             </div>
             
             <?php
             // ตรวจสอบ Claim ระหว่างคู่นี้เกี่ยวกับสิ่งของนี้เพื่อควบคุมการปิดแชท
-            $chat_claim_stmt = $pdo->prepare("SELECT id, status FROM claims WHERE item_id = ? AND (claimant_id = ? OR finder_id = ?) ORDER BY id DESC LIMIT 1");
+            $chat_claim_stmt = $pdo->prepare("
+                SELECT c.id, c.status 
+                FROM claims c 
+                WHERE c.item_id = ? 
+                  AND (c.user_id = ? OR c.user_id = ? OR c.status IN ('completed', 'returned'))
+                ORDER BY (c.status IN ('completed', 'returned')) DESC, c.id DESC LIMIT 1
+            ");
             $chat_claim_stmt->execute([$item_id, $chat_user1, $chat_user2]);
             $chat_claim = $chat_claim_stmt->fetch();
-            $is_claim_closed = ($chat_claim && in_array($chat_claim['status'], ['completed', 'rejected', 'cancelled', 'cancelled_mismatch']));
+
+            $is_item_resolved = in_array($item['status'] ?? '', ['resolved', 'closed', 'completed', 'returned']);
+            $is_claim_completed = ($chat_claim && in_array($chat_claim['status'], ['completed', 'returned', 'rejected', 'cancelled', 'cancelled_mismatch']));
+            $is_claim_closed = !$is_conversation_with_admin && ($is_item_resolved || $is_claim_completed);
             ?>
 
             <div class="flex items-center">
@@ -291,7 +312,7 @@ $is_admin_mode = (($_SESSION['user_role'] ?? '') === 'admin');
                     </span>
                 </div>
             <?php else: ?>
-                <form action="../actions/send_message_action.php" method="POST" class="flex gap-2">
+                <form id="chat-form" action="../actions/send_message_action.php" method="POST" class="flex gap-2">
                     <input type="hidden" name="item_id" value="<?php echo $item_id; ?>">
                     <input type="hidden" name="receiver_id" value="<?php echo $receiver_id; ?>">
                     <input type="hidden" name="ref" value="<?php echo htmlspecialchars($ref); ?>">
@@ -303,18 +324,18 @@ $is_admin_mode = (($_SESSION['user_role'] ?? '') === 'admin');
                     <?php endif; ?>
                     
                     <textarea 
+                        id="chat-input"
                         name="content" 
                         rows="1" 
-                        placeholder="พิมพ์ข้อความที่นี่..." 
-                        class="flex-grow px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-none transition"
+                        placeholder="พิมพ์ข้อความที่นี่" 
+                        class="flex-grow px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-none transition text-sm text-gray-800"
                         required
                     ></textarea>
                     
-                    <button type="submit" class="p-3 bg-accent text-white rounded-xl hover:bg-blue-600 transition shadow-sm flex items-center justify-center">
-                        <svg class="w-6 h-6 transform rotate-0" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                    <button type="submit" id="chat-submit-btn" class="w-11 h-11 bg-accent text-white rounded-xl hover:bg-blue-600 transition shadow-xs flex items-center justify-center cursor-pointer shrink-0 self-end" title="ส่งข้อความ">
+                        <svg class="w-5 h-5 transform rotate-0" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
                     </button>
                 </form>
-                <p class="text-[12px] text-gray-400 mt-2 text-center">ระบบจะเก็บการสนทนาไว้เป็นหลักฐานเพื่อความปลอดภัยของทั้งสองฝ่าย</p>
             <?php endif; ?>
         </div>
 
@@ -324,22 +345,68 @@ $is_admin_mode = (($_SESSION['user_role'] ?? '') === 'admin');
 <script>
     // Scroll chat to bottom on load
     const chatContainer = document.getElementById('chat-messages');
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-
-    // Auto-expand textarea
-    const tx = document.getElementsByTagName('textarea');
-    for (let i = 0; i < tx.length; i++) {
-        tx[i].setAttribute('style', 'height:' + (tx[i].scrollHeight) + 'px;overflow-y:hidden;');
-        tx[i].addEventListener("input", OnInput, false);
+    function scrollToBottom() {
+        if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
     }
 
-    function OnInput() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
-        if (this.scrollHeight > 150) {
-            this.style.height = '150px';
-            this.style.overflowY = 'scroll';
-        }
+    scrollToBottom();
+
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+
+    if (chatInput) {
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (chatForm) {
+                    chatForm.requestSubmit();
+                }
+            }
+        });
+
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            if (this.scrollHeight > 150) {
+                this.style.height = '150px';
+                this.style.overflowY = 'scroll';
+            }
+        });
+    }
+
+    if (chatForm) {
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const contentVal = chatInput ? chatInput.value.trim() : '';
+            if (!contentVal) return;
+
+            const formData = new FormData(chatForm);
+            
+            fetch(chatForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (chatInput) {
+                        chatInput.value = '';
+                        chatInput.style.height = 'auto';
+                    }
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'เกิดข้อผิดพลาดในการส่งข้อความ');
+                }
+            })
+            .catch(error => {
+                chatForm.submit();
+            });
+        });
     }
 </script>
 

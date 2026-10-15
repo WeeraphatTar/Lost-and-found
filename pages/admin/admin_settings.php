@@ -1,10 +1,14 @@
 <?php
-require_once '../../includes/header.php';
+ob_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once '../../config/database.php';
 
+// Strict Admin Guard
 if (!isset($_SESSION['user_id']) || (($_SESSION['user_role'] ?? '') !== 'admin')) {
     $_SESSION['error'] = "เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเข้าถึงหน้านี้ได้";
-    echo "<script>window.location.href = '".$base_url."/pages/login.php';</script>";
+    header("Location: ../login.php");
     exit;
 }
 
@@ -75,6 +79,8 @@ try {
 } catch (PDOException $e) {
     // Fallback to defaults
 }
+
+require_once '../../includes/header.php';
 ?>
 
 <div class="h-[calc(100vh-5rem)] bg-slate-50 flex flex-col md:flex-row flex-grow font-sans overflow-hidden">
@@ -155,7 +161,7 @@ try {
 
             <!-- Submit Button Section -->
             <div class="flex items-center justify-end gap-3 pt-2">
-                <button type="submit" name="save_settings" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer">
+                <button type="submit" name="save_settings" class="px-6 py-2.5 bg-[#0f172a] hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                     <span>บันทึกการตั้งค่า</span>
                 </button>

@@ -165,16 +165,33 @@ if (!isset($_SESSION['user_id']) || (($_SESSION['user_role'] ?? '') !== 'admin')
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div class="md:col-span-2">
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">รูปภาพสิ่งของ (ถ้ามี)</label>
-                            <div class="p-4 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100/50 transition cursor-pointer relative" onclick="document.getElementById('item_image').click()">
-                                <input id="item_image" name="item_image" type="file" class="sr-only" accept="image/*" onchange="previewImage(this)">
+                            <div class="p-4 sm:p-5 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 transition relative">
+                                <input id="item_image" name="item_image" type="file" class="hidden" accept="image/*" onchange="previewImage(this)">
+                                <input id="cameraInput" type="file" class="hidden" accept="image/*" capture="environment" onchange="handleCameraCapture(this)">
                                 
-                                <div id="upload-placeholder" class="flex items-center gap-4">
-                                    <div class="w-12 h-12 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0">
-                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                <div id="upload-placeholder" class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 flex-shrink-0">
+                                            <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <rect x="3" y="3" width="18" height="18" rx="4" ry="4"></rect>
+                                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                                <polyline points="21 15 16 10 5 21"></polyline>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-slate-800">อัปโหลดรูปภาพสิ่งของ</span>
+                                            <p class="text-[11px] text-slate-400">รองรับไฟล์ PNG, JPG ไม่เกิน 10MB</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span class="text-xs font-bold text-slate-800">คลิกเพื่ออัปโหลดรูปภาพ</span>
-                                        <p class="text-[11px] text-slate-400">รองรับไฟล์ PNG, JPG ไม่เกิน 10MB</p>
+                                    <div class="flex items-center gap-2">
+                                        <button type="button" onclick="document.getElementById('item_image').click()" class="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+                                            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                            เลือกไฟล์รูปภาพ
+                                        </button>
+                                        <button type="button" onclick="triggerTakePhoto()" class="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+                                            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                            ถ่ายภาพทันที
+                                        </button>
                                     </div>
                                 </div>
 
@@ -188,7 +205,11 @@ if (!isset($_SESSION['user_id']) || (($_SESSION['user_role'] ?? '') !== 'admin')
                                         </div>
                                         <div class="truncate">
                                             <p id="file-name-display" class="text-xs font-semibold text-slate-700 truncate"></p>
-                                            <span class="text-[11px] text-blue-600 font-medium">คลิกหากต้องการเปลี่ยนรูปใหม่</span>
+                                            <div class="flex items-center gap-2 mt-1">
+                                                <button type="button" onclick="document.getElementById('item_image').click()" class="text-[11px] text-blue-600 font-medium hover:underline">เลือกรูปใหม่</button>
+                                                <span class="text-slate-300">|</span>
+                                                <button type="button" onclick="triggerTakePhoto()" class="text-[11px] text-blue-600 font-medium hover:underline">ถ่ายใหม่</button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -356,7 +377,7 @@ if (!isset($_SESSION['user_id']) || (($_SESSION['user_role'] ?? '') !== 'admin')
     });
 
     function previewImage(input) {
-        const file = input.files[0];
+        const file = input && input.files ? input.files[0] : null;
         const previewContainer = document.getElementById('image-preview-container');
         const previewImage = document.getElementById('image-preview');
         const placeholder = document.getElementById('upload-placeholder');
@@ -368,26 +389,148 @@ if (!isset($_SESSION['user_id']) || (($_SESSION['user_role'] ?? '') !== 'admin')
                 previewImage.src = e.target.result;
                 previewContainer.classList.remove('hidden');
                 placeholder.classList.add('hidden');
-                fileNameDisplay.textContent = file.name;
+                if (fileNameDisplay) fileNameDisplay.textContent = file.name;
             }
             reader.readAsDataURL(file);
+        } else {
+            previewImage.src = '#';
+            previewContainer.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            if (fileNameDisplay) fileNameDisplay.textContent = '';
         }
     }
 
     function removeImage(event) {
-        event.stopPropagation();
+        if (event) event.stopPropagation();
         const input = document.getElementById('item_image');
-        input.value = '';
-        const previewContainer = document.getElementById('image-preview-container');
-        const previewImage = document.getElementById('image-preview');
-        const placeholder = document.getElementById('upload-placeholder');
-        const fileNameDisplay = document.getElementById('file-name-display');
+        if (input) input.value = '';
+        const cameraInput = document.getElementById('cameraInput');
+        if (cameraInput) cameraInput.value = '';
+        previewImage(input);
+    }
 
-        previewImage.src = '#';
-        previewContainer.classList.add('hidden');
-        placeholder.classList.remove('hidden');
-        fileNameDisplay.textContent = '';
+    // Camera & Webcam Functions
+    let webcamStream = null;
+
+    function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+    }
+
+    function triggerTakePhoto() {
+        if (isMobileDevice()) {
+            const cameraInput = document.getElementById('cameraInput');
+            if (cameraInput) cameraInput.click();
+        } else {
+            openWebcamModal();
+        }
+    }
+
+    function handleCameraCapture(input) {
+        const file = input.files ? input.files[0] : null;
+        if (file) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            const itemImageInput = document.getElementById('item_image');
+            itemImageInput.files = dataTransfer.files;
+            previewImage(itemImageInput);
+        }
+    }
+
+    async function openWebcamModal() {
+        const modal = document.getElementById('webcamModal');
+        const video = document.getElementById('webcamVideo');
+        const errorContainer = document.getElementById('webcamError');
+        
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        if (errorContainer) errorContainer.classList.add('hidden');
+        if (video) video.classList.remove('hidden');
+
+        try {
+            webcamStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, 
+                audio: false 
+            });
+            video.srcObject = webcamStream;
+        } catch (err) {
+            console.error("Camera access error:", err);
+            if (video) video.classList.add('hidden');
+            if (errorContainer) errorContainer.classList.remove('hidden');
+        }
+    }
+
+    function closeWebcamModal() {
+        const modal = document.getElementById('webcamModal');
+        if (webcamStream) {
+            webcamStream.getTracks().forEach(track => track.stop());
+            webcamStream = null;
+        }
+        const video = document.getElementById('webcamVideo');
+        if (video) video.srcObject = null;
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function snapPhoto() {
+        const video = document.getElementById('webcamVideo');
+        const canvas = document.getElementById('webcamCanvas');
+        
+        if (!video || !webcamStream) return;
+
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+            if (blob) {
+                const fileName = 'captured_photo_' + Date.now() + '.jpg';
+                const file = new File([blob], fileName, { type: 'image/jpeg' });
+                
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                const itemImageInput = document.getElementById('item_image');
+                itemImageInput.files = dataTransfer.files;
+                
+                previewImage(itemImageInput);
+                closeWebcamModal();
+            }
+        }, 'image/jpeg', 0.9);
     }
 </script>
+
+<!-- Webcam Modal (Desktop) -->
+<div id="webcamModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl relative flex flex-col items-center border border-slate-100">
+        <div class="w-full flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                ถ่ายภาพจากกล้องเว็บแคม (แอดมิน)
+            </h3>
+            <button type="button" onclick="closeWebcamModal()" class="text-slate-400 hover:text-slate-600 p-1 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        
+        <div class="relative w-full aspect-video bg-slate-900 rounded-xl overflow-hidden mb-4 flex items-center justify-center shadow-inner">
+            <video id="webcamVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+            <canvas id="webcamCanvas" class="hidden"></canvas>
+            <div id="webcamError" class="hidden text-center text-white text-xs p-4">
+                <p class="font-bold text-rose-400 mb-1">ไม่สามารถเข้าถึงกล้องได้</p>
+                <p class="text-slate-300">กรุณาอนุญาตการใช้งานกล้องเว็บแคมในเบราว์เซอร์ของคุณ</p>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 w-full pt-3 border-t border-slate-100">
+            <button type="button" onclick="closeWebcamModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">
+                ปิดกล้อง / ยกเลิก
+            </button>
+            <button type="button" onclick="snapPhoto()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                กดชัตเตอร์ / บันทึกภาพ
+            </button>
+        </div>
+    </div>
+</div>
 
 <?php require_once '../../includes/footer.php'; ?>

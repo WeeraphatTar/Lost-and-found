@@ -4,6 +4,7 @@ $base_url = 'http://localhost/lost-and-found';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/notification_helper.php';
 require_once __DIR__ . '/../helpers/admin_log_helper.php';
+require_once __DIR__ . '/../helpers/email_notification_helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     $_SESSION['error'] = "กรุณาเข้าสู่ระบบก่อนดำเนินการ";
@@ -55,7 +56,7 @@ switch ($action) {
         }
 
         // ตรวจสอบ Claim ที่ค้างอยู่
-        $stmt = $pdo->prepare("SELECT id FROM claims WHERE item_id = ? AND claimant_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled')");
+        $stmt = $pdo->prepare("SELECT id FROM claims WHERE item_id = ? AND user_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled')");
         $stmt->execute([$item_id, $user_id]);
         if ($stmt->fetch()) {
             $_SESSION['error'] = "คุณได้ยื่นคำร้องขอ Claim สำหรับรายการนี้ไปแล้ว";
@@ -81,8 +82,8 @@ switch ($action) {
         }
 
         // Insert Claim
-        $stmt = $pdo->prepare("INSERT INTO claims (item_id, claimant_id, finder_id, proof_description, proof_image, provided_serial_number, contact_phone, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')");
-        $stmt->execute([$item_id, $user_id, $item['user_id'], $proof_description, $proof_image_path, $provided_serial_number, $contact_phone]);
+        $stmt = $pdo->prepare("INSERT INTO claims (item_id, user_id, description, proof_image, contact_phone, status) VALUES (?, ?, ?, ?, ?, 'pending')");
+        $stmt->execute([$item_id, $user_id, $proof_description, $proof_image_path, $contact_phone]);
         $claim_id = $pdo->lastInsertId();
 
         // ส่ง Notification ถึงผู้พบของ (Finder)
@@ -93,8 +94,11 @@ switch ($action) {
         // ส่ง Notification ถึง Admin ทุกคนให้เข้าตรวจสอบหลักฐาน
         $admin_stmt = $pdo->query("SELECT id FROM users WHERE role = 'admin'");
         while ($admin = $admin_stmt->fetch()) {
-            add_notification($pdo, $admin['id'], "มีคำร้องขอ Claim สิ่งของ '[{$item['title']}]' ใหม่ยื่นเข้ามา รอ Admin ตรวจสอบหลักฐาน", "pages/admin/admin_claims.php");
+            add_notification($pdo, $admin['id'], "มีคำร้องขอ Claim สิ่งของ '[{$item['title']}]' ใหม่ยื่นเข้ามา รอ Admin ตรวจสอบหลักฐาน", "pages/admin/admin_claim_detail.php?id=" . $claim_id);
         }
+
+        // Email Notification: Notify Finder about new claim
+        dispatch_claim_submitted_email($pdo, $claim_id);
 
         $_SESSION['success'] = "ยื่นคำร้องขอ Claim สำเร็จเรียบร้อยแล้ว! คำร้องของคุณส่งเข้าสู่ศูนย์ตรวจสอบของ Admin เรียบร้อยแล้ว";
         header("Location: " . $base_url . "/pages/claim_detail.php?id=" . $claim_id);
@@ -106,7 +110,7 @@ switch ($action) {
     case 'approve_claim':
         $claim_id = isset($_POST['claim_id']) ? (int)$_POST['claim_id'] : 0;
         
-        $stmt = $pdo->prepare("SELECT c.*, i.title FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
+        $stmt = $pdo->prepare("SELECT c.*, c.user_id as claimant_id, i.title, i.user_id as finder_id FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
         $stmt->execute([$claim_id]);
         $claim = $stmt->fetch();
 
@@ -121,7 +125,7 @@ switch ($action) {
         $pdo->prepare("UPDATE items SET status = 'pending', updated_at = NOW() WHERE id = ?")->execute([$claim['item_id']]);
 
         // เคลียร์คำร้องซ้อนอื่นๆ บนสิ่งของชิ้นเดียวกันให้อัตโนมัติ
-        $other_claims_stmt = $pdo->prepare("SELECT id, claimant_id FROM claims WHERE item_id = ? AND id != ? AND status IN ('pending', 'under_admin_review')");
+        $other_claims_stmt = $pdo->prepare("SELECT id, user_id as claimant_id FROM claims WHERE item_id = ? AND id != ? AND status IN ('pending', 'under_admin_review')");
         $other_claims_stmt->execute([$claim['item_id'], $claim_id]);
         $other_claims = $other_claims_stmt->fetchAll();
 
@@ -140,6 +144,14 @@ switch ($action) {
         $notify_link = "pages/claim_detail.php?id=" . $claim_id;
         add_notification($pdo, $claim['claimant_id'], $notify_msg, $notify_link);
 
+        // Email Notification: Notify Claimant about approval, and rejected claimants
+        dispatch_claim_status_email($pdo, $claim_id, 'approved');
+        if (!empty($other_claims)) {
+            foreach ($other_claims as $other) {
+                dispatch_claim_status_email($pdo, $other['id'], 'rejected', $auto_reject_note);
+            }
+        }
+
         $_SESSION['success'] = "อนุมัติคำร้องขอ Claim เรียบร้อยแล้ว สามารถนัดหมายสถานที่และเวลาเพื่อส่งมอบสิ่งของได้";
         header("Location: " . $base_url . "/pages/claim_detail.php?id=" . $claim_id);
         exit;
@@ -157,7 +169,7 @@ switch ($action) {
             exit;
         }
 
-        $stmt = $pdo->prepare("SELECT c.*, i.title FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
+        $stmt = $pdo->prepare("SELECT c.*, c.user_id as claimant_id, i.title, i.user_id as finder_id FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
         $stmt->execute([$claim_id]);
         $claim = $stmt->fetch();
 
@@ -181,8 +193,11 @@ switch ($action) {
         // แจ้งเตือน Admins ทุกคน
         $admin_stmt = $pdo->query("SELECT id FROM users WHERE role = 'admin'");
         while ($admin = $admin_stmt->fetch()) {
-            add_notification($pdo, $admin['id'], "มีข้อพิพาทคำร้อง Claim ใหม่ '[{$claim['title']}]' รอการตรวจสอบ", "pages/admin/admin_claims.php");
+            add_notification($pdo, $admin['id'], "มีข้อพิพาทคำร้อง Claim ใหม่ '[{$claim['title']}]' รอการตรวจสอบ", "pages/admin/admin_claim_detail.php?id=" . $claim_id);
         }
+
+        // Email Notification: Notify parties about dispute & admin review
+        dispatch_claim_status_email($pdo, $claim_id, 'disputed', $dispute_reason);
 
         $_SESSION['success'] = "ส่งคำร้องเข้าสู่ระบบตรวจสอบของ Admin เรียบร้อยแล้ว ทีมงานจะพิจารณาหลักฐานและดำเนินการในลำดับต่อไป";
         header("Location: " . $base_url . "/pages/claim_detail.php?id=" . $claim_id);
@@ -202,7 +217,7 @@ switch ($action) {
         $decision = $_POST['decision'] ?? ''; // 'approve' or 'reject'
         $admin_notes = trim($_POST['admin_notes'] ?? '');
 
-        $stmt = $pdo->prepare("SELECT c.*, i.title FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
+        $stmt = $pdo->prepare("SELECT c.*, c.user_id as claimant_id, i.title, i.user_id as finder_id FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
         $stmt->execute([$claim_id]);
         $claim = $stmt->fetch();
 
@@ -222,20 +237,20 @@ switch ($action) {
         }
 
         if ($decision === 'approve') {
-            $pdo->prepare("UPDATE claims SET status = 'approved', admin_id = ?, admin_notes = ?, admin_action_at = NOW(), updated_at = NOW() WHERE id = ?")
+            $pdo->prepare("UPDATE claims SET status = 'approved', reviewed_by = ?, admin_note = ?, reviewed_at = NOW(), updated_at = NOW() WHERE id = ?")
                 ->execute([$user_id, $admin_notes, $claim_id]);
             $pdo->prepare("UPDATE items SET status = 'pending', updated_at = NOW() WHERE id = ?")
                 ->execute([$claim['item_id']]);
 
             // เคลียร์คำร้องซ้อนอื่นๆ บนสิ่งของชิ้นเดียวกันให้อัตโนมัติ
-            $other_claims_stmt = $pdo->prepare("SELECT id, claimant_id FROM claims WHERE item_id = ? AND id != ? AND status IN ('pending', 'under_admin_review')");
+            $other_claims_stmt = $pdo->prepare("SELECT id, user_id as claimant_id FROM claims WHERE item_id = ? AND id != ? AND status IN ('pending', 'under_admin_review')");
             $other_claims_stmt->execute([$claim['item_id'], $claim_id]);
             $other_claims = $other_claims_stmt->fetchAll();
 
             if (!empty($other_claims)) {
                 $auto_reject_note = "สิ่งของชิ้นนี้ได้รับการยืนยันและอนุมัติส่งคืนให้แก่ผู้ยื่นคำร้องท่านอื่นเรียบร้อยแล้ว";
-                $pdo->prepare("UPDATE claims SET status = 'rejected', admin_notes = ?, updated_at = NOW() WHERE item_id = ? AND id != ? AND status IN ('pending', 'under_admin_review')")
-                    ->execute([$auto_reject_note, $claim['item_id'], $claim_id]);
+                $pdo->prepare("UPDATE claims SET status = 'rejected', admin_note = ?, reviewed_by = ?, reviewed_at = NOW(), updated_at = NOW() WHERE item_id = ? AND id != ? AND status IN ('pending', 'under_admin_review')")
+                    ->execute([$auto_reject_note, $user_id, $claim['item_id'], $claim_id]);
 
                 foreach ($other_claims as $other) {
                     add_notification($pdo, $other['claimant_id'], "คำร้องขอ Claim สิ่งของ '[{$claim['title']}]' ของคุณถูกยกเลิก เนื่องจากสิ่งของได้รับการอนุมัติส่งคืนให้แก่เจ้าของที่แท้จริงเรียบร้อยแล้ว", "pages/claim_detail.php?id=" . $other['id']);
@@ -246,10 +261,19 @@ switch ($action) {
             add_notification($pdo, $claim['finder_id'], "Admin ได้ตรวจสอบและอนุมัติคำร้องขอ Claim '[{$claim['title']}]' แล้ว โปรดดำเนินนัดส่งมอบ", "pages/claim_detail.php?id=" . $claim_id);
             
             log_admin_action($pdo, $user_id, 'approve_claim', "อนุมัติคำร้อง Claim ID #{$claim_id} สำหรับประกาศ '{$claim['title']}'");
+
+            // Email Notification: Admin approve
+            dispatch_claim_status_email($pdo, $claim_id, 'approved', $admin_notes);
+            if (!empty($other_claims)) {
+                foreach ($other_claims as $other) {
+                    dispatch_claim_status_email($pdo, $other['id'], 'rejected', $auto_reject_note);
+                }
+            }
+
             $_SESSION['success'] = "อนุมัติคำร้องขอ Claim สำเร็จแล้ว";
 
         } elseif ($decision === 'reject') {
-            $pdo->prepare("UPDATE claims SET status = 'rejected', admin_id = ?, admin_notes = ?, admin_action_at = NOW(), updated_at = NOW() WHERE id = ?")
+            $pdo->prepare("UPDATE claims SET status = 'rejected', reviewed_by = ?, admin_note = ?, reviewed_at = NOW(), updated_at = NOW() WHERE id = ?")
                 ->execute([$user_id, $admin_notes, $claim_id]);
             // คืนสถานะ Item เป็น open
             $pdo->prepare("UPDATE items SET status = 'open', updated_at = NOW() WHERE id = ?")
@@ -260,6 +284,9 @@ switch ($action) {
             add_notification($pdo, $claim['finder_id'], "Admin ได้ปฏิเสธคำร้องขอ Claim '[{$claim['title']}]' แล้ว ประกาศถูกเปิดให้ค้นหาตามปกติ", "pages/claim_detail.php?id=" . $claim_id);
 
             log_admin_action($pdo, $user_id, 'reject_claim', "ปฏิเสธคำร้อง Claim ID #{$claim_id} สำหรับประกาศ '{$claim['title']}'");
+
+            // Email Notification: Admin reject
+            dispatch_claim_status_email($pdo, $claim_id, 'rejected', $admin_notes);
 
             $_SESSION['success'] = "ปฏิเสธคำร้องขอ Claim และเปิดประกาศกลับเป็น Open สำเร็จแล้ว";
         }
@@ -278,7 +305,7 @@ switch ($action) {
         $claim_id = isset($_POST['claim_id']) ? (int)$_POST['claim_id'] : 0;
         $cancel_reason = trim($_POST['cancel_reason'] ?? 'ตรวจสอบสิ่งของจริงแล้วไม่ใช่ของผู้ขอ Claim');
 
-        $stmt = $pdo->prepare("SELECT c.*, i.title FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
+        $stmt = $pdo->prepare("SELECT c.*, c.user_id as claimant_id, i.title, i.user_id as finder_id FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
         $stmt->execute([$claim_id]);
         $claim = $stmt->fetch();
 
@@ -288,8 +315,8 @@ switch ($action) {
             exit;
         }
 
-        // ปรับสถานะ Claim -> cancelled_mismatch, Item -> open
-        $pdo->prepare("UPDATE claims SET status = 'cancelled_mismatch', cancel_reason = ?, updated_at = NOW() WHERE id = ?")
+        // ปรับสถานะ Claim -> cancelled, Item -> open
+        $pdo->prepare("UPDATE claims SET status = 'cancelled', cancel_reason = ?, updated_at = NOW() WHERE id = ?")
             ->execute([$cancel_reason, $claim_id]);
         $pdo->prepare("UPDATE items SET status = 'open', updated_at = NOW() WHERE id = ?")
             ->execute([$claim['item_id']]);
@@ -298,6 +325,9 @@ switch ($action) {
         $msg = "การยื่น Claim สำหรับ '[{$claim['title']}]' ถูกยกเลิกเนื่องจากตรวจสอบแล้วสิ่งของไม่ตรงกัน ประกาศเปิดให้ค้นหาตามปกติแล้ว";
         add_notification($pdo, $claim['claimant_id'], $msg, "pages/claim_detail.php?id=" . $claim_id);
         add_notification($pdo, $claim['finder_id'], $msg, "pages/claim_detail.php?id=" . $claim_id);
+
+        // Email Notification: Cancel Mismatch
+        dispatch_claim_status_email($pdo, $claim_id, 'cancelled_mismatch', $cancel_reason);
 
         $_SESSION['success'] = "ยกเลิกคำร้องเนื่องจากสิ่งของไม่ตรงกันเรียบร้อย ประกาศถูกเปิดให้ค้นหาและจับคู่ใหม่อีกครั้ง";
         header("Location: " . $base_url . "/pages/claim_detail.php?id=" . $claim_id);
@@ -309,7 +339,7 @@ switch ($action) {
     case 'complete_claim':
         $claim_id = isset($_POST['claim_id']) ? (int)$_POST['claim_id'] : 0;
 
-        $stmt = $pdo->prepare("SELECT c.*, i.title FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
+        $stmt = $pdo->prepare("SELECT c.*, c.user_id as claimant_id, i.title, i.user_id as finder_id FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
         $stmt->execute([$claim_id]);
         $claim = $stmt->fetch();
 
@@ -327,8 +357,52 @@ switch ($action) {
         add_notification($pdo, $claim['claimant_id'], $msg, "pages/claim_detail.php?id=" . $claim_id);
         add_notification($pdo, $claim['finder_id'], $msg, "pages/claim_detail.php?id=" . $claim_id);
 
+        // Email Notification: Complete Claim
+        dispatch_claim_status_email($pdo, $claim_id, 'completed');
+
         $_SESSION['success'] = "ยืนยันการรับส่งมอบสิ่งของสำเร็จเรียบร้อย ประกาศปรับสถานะเป็นส่งคืนสำเร็จแล้ว";
         header("Location: " . $base_url . "/pages/claim_detail.php?id=" . $claim_id);
+        exit;
+
+    // ----------------------------------------------------
+    // 7. Admin Complete Claim (ยืนยันส่งมอบสิ่งของฝั่ง Admin)
+    // ----------------------------------------------------
+    case 'admin_complete_claim':
+        if ($user_role !== 'admin') {
+            $_SESSION['error'] = "เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถดำเนินการนี้ได้";
+            header("Location: " . $base_url . "/index.php");
+            exit;
+        }
+
+        $claim_id = isset($_POST['claim_id']) ? (int)$_POST['claim_id'] : 0;
+
+        $stmt = $pdo->prepare("SELECT c.*, c.user_id as claimant_id, i.title, i.user_id as finder_id FROM claims c JOIN items i ON c.item_id = i.id WHERE c.id = ?");
+        $stmt->execute([$claim_id]);
+        $claim = $stmt->fetch();
+
+        if (!$claim) {
+            $_SESSION['error'] = "ไม่พบข้อมูลคำร้องในระบบ";
+            header("Location: " . $base_url . "/pages/admin/admin_claims.php");
+            exit;
+        }
+
+        // ปรับสถานะ Claim -> completed, Item -> resolved
+        $pdo->prepare("UPDATE claims SET status = 'completed', updated_at = NOW() WHERE id = ?")->execute([$claim_id]);
+        $pdo->prepare("UPDATE items SET status = 'resolved', updated_at = NOW() WHERE id = ?")->execute([$claim['item_id']]);
+
+        $clm_code = '#CLM-' . str_pad($claim_id, 3, '0', STR_PAD_LEFT);
+        $notify_msg = "เจ้าหน้าที่ได้บันทึกการส่งมอบสิ่งของ [{$clm_code}] สำเร็จเรียบร้อยแล้ว";
+        add_notification($pdo, $claim['claimant_id'], $notify_msg, "pages/claim_detail.php?id=" . $claim_id);
+
+        if ($claim['finder_id'] && $claim['finder_id'] != $user_id && $claim['finder_id'] != $claim['claimant_id']) {
+            add_notification($pdo, $claim['finder_id'], "เจ้าหน้าที่ได้บันทึกการส่งมอบสิ่งของ '[{$claim['title']}]' สำเร็จเรียบร้อยแล้ว", "pages/claim_detail.php?id=" . $claim_id);
+        }
+
+        // Email Notification: Admin Complete Claim
+        dispatch_claim_status_email($pdo, $claim_id, 'completed');
+
+        $_SESSION['success'] = "เจ้าหน้าที่ได้บันทึกการส่งมอบสิ่งของ [" . $clm_code . "] สำเร็จเรียบร้อยแล้ว";
+        header("Location: " . $base_url . "/pages/admin/admin_claim_detail.php?id=" . $claim_id);
         exit;
 
     default:

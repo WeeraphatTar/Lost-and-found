@@ -9,6 +9,14 @@ if (!function_exists('add_notification')) {
      */
     function add_notification($pdo, $user_id, $message, $link = null) {
         try {
+            if ($link && strpos($link, 'pages/claim_detail.php') !== false) {
+                $role_stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+                $role_stmt->execute([$user_id]);
+                $user_role = $role_stmt->fetchColumn();
+                if ($user_role === 'admin') {
+                    $link = str_replace('pages/claim_detail.php', 'pages/admin/admin_claim_detail.php', $link);
+                }
+            }
             $sql = "INSERT INTO notifications (user_id, message, link, is_read, created_at) VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)";
             $stmt = $pdo->prepare($sql);
             return $stmt->execute([$user_id, $message, $link]);

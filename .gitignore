@@ -1,3 +1,6 @@
 uploads/*
 !uploads/.gitkeep
 config/vision.php
+
+# ซ่อนไฟล์ Config ที่มีข้อมูล Sensitive / Password
+config/auth_config.php

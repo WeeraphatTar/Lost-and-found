@@ -20,6 +20,10 @@ if ($action === 'read') {
     }
 
     if (!empty($link)) {
+        $user_role = $_SESSION['user_role'] ?? 'user';
+        if ($user_role === 'admin' && strpos($link, 'pages/claim_detail.php') !== false) {
+            $link = str_replace('pages/claim_detail.php', 'pages/admin/admin_claim_detail.php', $link);
+        }
         header("Location: ../" . $link);
     } else {
         header("Location: ../pages/notifications.php");

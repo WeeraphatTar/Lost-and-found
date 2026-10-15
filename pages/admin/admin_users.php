@@ -14,7 +14,7 @@ $status_filter = isset($_GET['status']) ? trim($_GET['status']) : 'all';
 
 $query = "SELECT u.*, 
                  (SELECT COUNT(*) FROM items WHERE user_id = u.id) as item_count,
-                 (SELECT COUNT(*) FROM claims WHERE claimant_id = u.id) as claim_count
+                 (SELECT COUNT(*) FROM claims WHERE user_id = u.id) as claim_count
           FROM users u 
           WHERE 1=1";
 

@@ -67,7 +67,7 @@ if ($export_format === 'csv') {
         // Headers
         fputcsv($output, ['ลำดับคำร้อง (ID)', 'ID ประกาศ', 'ชื่อสิ่งของ', 'ผู้ขอรับคืน', 'อีเมลผู้ขอรับคืน', 'เจ้าของโพสต์', 'อีเมลเจ้าของโพสต์', 'คะแนนจับคู่', 'สถานะคำร้อง', 'วันที่ยื่นคำร้อง']);
         
-        $stmt = $pdo->prepare("SELECT c.*, i.title as item_title, u_claim.first_name as claim_first, u_claim.last_name as claim_last, u_claim.email as claim_email, u_owner.first_name as owner_first, u_owner.last_name as owner_last, u_owner.email as owner_email FROM claims c JOIN items i ON c.item_id = i.id JOIN users u_claim ON c.claimant_id = u_claim.id LEFT JOIN users u_owner ON c.finder_id = u_owner.id WHERE c.created_at BETWEEN ? AND ? ORDER BY c.created_at DESC");
+        $stmt = $pdo->prepare("SELECT c.*, i.title as item_title, u_claim.first_name as claim_first, u_claim.last_name as claim_last, u_claim.email as claim_email, u_owner.first_name as owner_first, u_owner.last_name as owner_last, u_owner.email as owner_email FROM claims c JOIN items i ON c.item_id = i.id JOIN users u_claim ON c.user_id = u_claim.id LEFT JOIN users u_owner ON i.user_id = u_owner.id WHERE c.created_at BETWEEN ? AND ? ORDER BY c.created_at DESC");
         $stmt->execute([$start_ts, $end_ts]);
 
         $claim_status_map = [
@@ -135,7 +135,7 @@ if ($report_type === 'items') {
     $stmt->execute([$start_ts, $end_ts]);
     $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } elseif ($report_type === 'claims') {
-    $stmt = $pdo->prepare("SELECT c.*, i.title as item_title, u_claim.first_name as claim_first, u_claim.last_name as claim_last, u_claim.email as claim_email, u_owner.first_name as owner_first, u_owner.last_name as owner_last, u_owner.email as owner_email FROM claims c JOIN items i ON c.item_id = i.id JOIN users u_claim ON c.claimant_id = u_claim.id LEFT JOIN users u_owner ON c.finder_id = u_owner.id WHERE c.created_at BETWEEN ? AND ? ORDER BY c.created_at DESC");
+    $stmt = $pdo->prepare("SELECT c.*, i.title as item_title, u_claim.first_name as claim_first, u_claim.last_name as claim_last, u_claim.email as claim_email, u_owner.first_name as owner_first, u_owner.last_name as owner_last, u_owner.email as owner_email FROM claims c JOIN items i ON c.item_id = i.id JOIN users u_claim ON c.user_id = u_claim.id LEFT JOIN users u_owner ON i.user_id = u_owner.id WHERE c.created_at BETWEEN ? AND ? ORDER BY c.created_at DESC");
     $stmt->execute([$start_ts, $end_ts]);
     $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } else {

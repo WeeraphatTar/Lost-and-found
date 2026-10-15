@@ -13,11 +13,11 @@ $tab = isset($_GET['tab']) ? $_GET['tab'] : 'my_claims';
 
 // ดึงรายการคำร้องที่ผู้ใช้ยื่นขอ Claim (In Claims)
 $my_claims_stmt = $pdo->prepare("
-    SELECT c.*, i.title as item_title, i.image_path as item_image, i.location, u.first_name as finder_first, u.last_name as finder_last
+    SELECT c.*, c.status AS claim_status, COALESCE(c.description, '') as proof_description, i.title as item_title, i.status AS item_status, i.image_path as item_image, i.location, i.user_id as finder_id, u.first_name as finder_first, u.last_name as finder_last
     FROM claims c
     JOIN items i ON c.item_id = i.id
-    JOIN users u ON c.finder_id = u.id
-    WHERE c.claimant_id = ?
+    JOIN users u ON i.user_id = u.id
+    WHERE c.user_id = ?
     ORDER BY c.created_at DESC
 ");
 $my_claims_stmt->execute([$user_id]);
@@ -25,33 +25,30 @@ $my_claims = $my_claims_stmt->fetchAll();
 
 // ดึงรายการคำร้องที่ผู้อื่นยื่นขอ Claim สิ่งของที่เราเก็บได้ (Incoming Claims)
 $incoming_claims_stmt = $pdo->prepare("
-    SELECT c.*, i.title as item_title, i.image_path as item_image, i.location, u.first_name as claimant_first, u.last_name as claimant_last
+    SELECT c.*, c.status AS claim_status, COALESCE(c.description, '') as proof_description, i.title as item_title, i.status AS item_status, i.image_path as item_image, i.location, u.first_name as claimant_first, u.last_name as claimant_last
     FROM claims c
     JOIN items i ON c.item_id = i.id
-    JOIN users u ON c.claimant_id = u.id
-    WHERE c.finder_id = ?
+    JOIN users u ON c.user_id = u.id
+    WHERE i.user_id = ?
     ORDER BY c.created_at DESC
 ");
 $incoming_claims_stmt->execute([$user_id]);
 $incoming_claims = $incoming_claims_stmt->fetchAll();
 
-function get_status_badge($status) {
-    switch ($status) {
-        case 'pending':
-        case 'under_admin_review':
-            return '<span class="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold rounded-full flex items-center gap-1.5"><span class="w-2 h-2 bg-amber-500 rounded-full"></span> รอ Admin ตรวจสอบ</span>';
-        case 'approved':
-        case 'meeting_scheduled':
-            return '<span class="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold rounded-full flex items-center gap-1.5"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> อนุมัติแล้ว</span>';
-        case 'completed':
-            return '<span class="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold rounded-full flex items-center gap-1.5"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> ส่งมอบสำเร็จ</span>';
-        case 'cancelled_mismatch':
-            return '<span class="px-3 py-1 bg-gray-50 text-gray-700 border border-gray-200 text-xs font-semibold rounded-full flex items-center gap-1.5"><span class="w-2 h-2 bg-gray-400 rounded-full"></span> ยกเลิกคำร้อง</span>';
-        case 'rejected':
-            return '<span class="px-3 py-1 bg-red-50 text-red-700 border border-red-200 text-xs font-semibold rounded-full flex items-center gap-1.5"><span class="w-2 h-2 bg-red-500 rounded-full"></span> ปฏิเสธคำร้อง</span>';
-        default:
-            return '<span class="px-3 py-1 bg-gray-50 text-gray-700 border border-gray-200 text-xs font-semibold rounded-full">ไม่ระบุ</span>';
+function get_status_badge($claim_status, $item_status = '') {
+    if ($claim_status === 'rejected') {
+        return '<span class="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold rounded-full inline-flex items-center gap-1.5"><span class="w-2 h-2 bg-rose-500 rounded-full"></span> ปฏิเสธคำร้อง</span>';
     }
+    if (in_array($claim_status, ['cancelled_mismatch', 'cancelled'])) {
+        return '<span class="px-2.5 py-1 bg-gray-50 text-gray-700 border border-gray-200 text-xs font-semibold rounded-full inline-flex items-center gap-1.5"><span class="w-2 h-2 bg-gray-400 rounded-full"></span> ยกเลิกคำร้อง</span>';
+    }
+    if (in_array($claim_status, ['pending', 'under_admin_review'])) {
+        return '<span class="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-full inline-flex items-center gap-1.5"><span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span> รอ Admin ตรวจสอบ</span>';
+    }
+    if ($item_status === 'resolved' || $item_status === 'closed' || in_array($claim_status, ['completed', 'returned'])) {
+        return '<span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-full inline-flex items-center gap-1.5"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> ส่งมอบสำเร็จ</span>';
+    }
+    return '<span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-full inline-flex items-center gap-1.5"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> อนุมัติแล้ว</span>';
 }
 ?>
 
@@ -110,7 +107,7 @@ function get_status_badge($status) {
                         <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
                             <div>
                                 <div class="flex justify-between items-center mb-4 gap-2 border-b border-gray-100 pb-3">
-                                    <?php echo get_status_badge($claim['status']); ?>
+                                    <?php echo get_status_badge($claim['claim_status'], $claim['item_status']); ?>
                                     <span class="text-xs text-gray-400 font-medium"><?php echo date('d M Y H:i', strtotime($claim['created_at'])); ?></span>
                                 </div>
                                 <div class="flex gap-4 items-start mb-3">
@@ -136,7 +133,7 @@ function get_status_badge($status) {
                                     <span class="text-gray-700 truncate inline-block max-w-full align-bottom ml-1"><?php echo htmlspecialchars($claim['proof_description']); ?></span>
                                 </div>
 
-                                <?php if ($claim['status'] === 'rejected' && !empty($claim['admin_notes'])): ?>
+                                <?php if ($claim['claim_status'] === 'rejected' && !empty($claim['admin_notes'])): ?>
                                     <div class="text-xs text-red-700 bg-red-50 border border-red-100 p-2.5 rounded-xl mb-4">
                                         <span class="font-bold block text-red-800 mb-0.5">เหตุผลที่ Admin ปฏิเสธ:</span>
                                         <span class="text-red-700"><?php echo htmlspecialchars($claim['admin_notes']); ?></span>
@@ -144,16 +141,21 @@ function get_status_badge($status) {
                                 <?php endif; ?>
                             </div>
                             <div class="pt-4 border-t border-gray-100 flex items-center justify-end gap-2.5">
-                                <?php if (in_array($claim['status'], ['approved', 'meeting_scheduled', 'completed'])): ?>
-                                    <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $claim['item_id']; ?>&receiver_id=<?php echo $claim['finder_id']; ?>&ref=claims&tab=my_claims" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl border border-blue-600 transition flex items-center gap-1.5 shadow-2xs">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                                        แชทสนทนา
-                                    </a>
-                                <?php else: ?>
-                                    <button type="button" disabled title="ต้องได้รับการอนุมัติคำร้องจาก Admin ก่อน จึงจะแชทสนทนาได้" class="px-3.5 py-2 bg-slate-100 text-slate-400 font-semibold text-xs rounded-xl border border-slate-200 cursor-not-allowed flex items-center gap-1.5 opacity-70">
-                                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                                        แชท (รอ Admin อนุมัติ)
-                                    </button>
+                                <?php 
+                                    $is_case_closed = ($claim['item_status'] === 'resolved' || $claim['item_status'] === 'closed' || in_array($claim['claim_status'], ['completed', 'returned']));
+                                ?>
+                                <?php if (!$is_case_closed): ?>
+                                    <?php if (in_array($claim['claim_status'], ['approved', 'meeting_scheduled'])): ?>
+                                        <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $claim['item_id']; ?>&receiver_id=<?php echo $claim['finder_id']; ?>&ref=claims&tab=my_claims" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl border border-blue-600 transition flex items-center gap-1.5 shadow-2xs">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                            แชทสนทนา
+                                        </a>
+                                    <?php elseif (in_array($claim['claim_status'], ['pending', 'under_admin_review'])): ?>
+                                        <button type="button" disabled title="ต้องได้รับการอนุมัติคำร้องจาก Admin ก่อน จึงจะแชทสนทนาได้" class="px-3.5 py-2 bg-slate-100 text-slate-400 font-semibold text-xs rounded-xl border border-slate-200 cursor-not-allowed flex items-center gap-1.5 opacity-70">
+                                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                            แชท (รอ Admin อนุมัติ)
+                                        </button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                                 <a href="<?php echo $base_url; ?>/pages/claim_detail.php?id=<?php echo $claim['id']; ?>&tab=my_claims" class="px-4 py-2 bg-primary hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition shadow-sm">
                                     ดูรายละเอียด
@@ -180,7 +182,7 @@ function get_status_badge($status) {
                         <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
                             <div>
                                 <div class="flex justify-between items-center mb-4 gap-2 border-b border-gray-100 pb-3">
-                                    <?php echo get_status_badge($claim['status']); ?>
+                                    <?php echo get_status_badge($claim['claim_status'], $claim['item_status']); ?>
                                     <span class="text-xs text-gray-400 font-medium"><?php echo date('d M Y H:i', strtotime($claim['created_at'])); ?></span>
                                 </div>
                                 <div class="flex gap-4 items-start mb-3">
@@ -206,7 +208,7 @@ function get_status_badge($status) {
                                     <span class="text-gray-700 truncate inline-block max-w-full align-bottom ml-1"><?php echo htmlspecialchars($claim['proof_description']); ?></span>
                                 </div>
 
-                                <?php if ($claim['status'] === 'rejected' && !empty($claim['admin_notes'])): ?>
+                                <?php if ($claim['claim_status'] === 'rejected' && !empty($claim['admin_notes'])): ?>
                                     <div class="text-xs text-red-700 bg-red-50 border border-red-100 p-2.5 rounded-xl mb-4">
                                         <span class="font-bold block text-red-800 mb-0.5">เหตุผลที่ Admin ปฏิเสธ:</span>
                                         <span class="text-red-700"><?php echo htmlspecialchars($claim['admin_notes']); ?></span>
@@ -214,16 +216,21 @@ function get_status_badge($status) {
                                 <?php endif; ?>
                             </div>
                             <div class="pt-4 border-t border-gray-100 flex items-center justify-end gap-2.5">
-                                <?php if (in_array($claim['status'], ['approved', 'meeting_scheduled', 'completed'])): ?>
-                                    <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $claim['item_id']; ?>&receiver_id=<?php echo $claim['claimant_id']; ?>&ref=claims&tab=incoming_claims" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl border border-blue-600 transition flex items-center gap-1.5 shadow-2xs">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                                        แชทสนทนา
-                                    </a>
-                                <?php else: ?>
-                                    <button type="button" disabled title="ต้องได้รับการอนุมัติคำร้องจาก Admin ก่อน จึงจะแชทสนทนาได้" class="px-3.5 py-2 bg-slate-100 text-slate-400 font-semibold text-xs rounded-xl border border-slate-200 cursor-not-allowed flex items-center gap-1.5 opacity-70">
-                                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                                        แชท (รอ Admin อนุมัติ)
-                                    </button>
+                                <?php 
+                                    $is_case_closed = ($claim['item_status'] === 'resolved' || $claim['item_status'] === 'closed' || in_array($claim['claim_status'], ['completed', 'returned']));
+                                ?>
+                                <?php if (!$is_case_closed): ?>
+                                    <?php if (in_array($claim['claim_status'], ['approved', 'meeting_scheduled'])): ?>
+                                        <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $claim['item_id']; ?>&receiver_id=<?php echo $claim['user_id']; ?>&ref=claims&tab=incoming_claims" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl border border-blue-600 transition flex items-center gap-1.5 shadow-2xs">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                            แชทสนทนา
+                                        </a>
+                                    <?php elseif (in_array($claim['claim_status'], ['pending', 'under_admin_review'])): ?>
+                                        <button type="button" disabled title="ต้องได้รับการอนุมัติคำร้องจาก Admin ก่อน จึงจะแชทสนทนาได้" class="px-3.5 py-2 bg-slate-100 text-slate-400 font-semibold text-xs rounded-xl border border-slate-200 cursor-not-allowed flex items-center gap-1.5 opacity-70">
+                                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                            แชท (รอ Admin อนุมัติ)
+                                        </button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                                 <a href="<?php echo $base_url; ?>/pages/claim_detail.php?id=<?php echo $claim['id']; ?>&tab=incoming_claims" class="px-4 py-2 bg-primary hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition shadow-sm">
                                     ดูรายละเอียด

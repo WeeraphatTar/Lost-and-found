@@ -68,6 +68,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($type === 'found' && (empty($secret_description) || empty(trim($secret_description)))) {
+        $_SESSION['error'] = "กรุณาระบุรายละเอียดลับสำหรับยืนยันเจ้าของ (*)";
+        header("Location: ../pages/edit_item.php?id=$item_id");
+        exit;
+    }
+
     // Construct location for backward compatibility
     $location = trim($location_detail . ' อ.' . $district . ' จ.' . $province);
 
@@ -140,15 +146,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $image_path = 'uploads/items/' . $new_filename;
 
                 // Detect labels for new image using Google Cloud Vision API
-                require_once '../includes/vision_helper.php';
-                $labels = detect_labels($destination);
-                if (!empty($labels)) {
-                    // Translate labels to 2 languages
-                    require_once '../includes/translation_helper.php';
-                    $translated_labels = translate_labels($pdo, $labels);
-                    $image_labels = json_encode($translated_labels, JSON_UNESCAPED_UNICODE);
-                } else {
-                    $image_labels = null;
+                if (file_exists('../helpers/vision_helper.php')) {
+                    require_once '../helpers/vision_helper.php';
+                    if (function_exists('detect_labels')) {
+                        $labels = detect_labels($destination);
+                        if (!empty($labels) && file_exists('../helpers/translation_helper.php')) {
+                            require_once '../helpers/translation_helper.php';
+                            if (function_exists('translate_labels')) {
+                                $translated_labels = translate_labels($pdo, $labels);
+                                $image_labels = json_encode($translated_labels, JSON_UNESCAPED_UNICODE);
+                            }
+                        }
+                    }
                 }
             } else {
                 $_SESSION['error'] = "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพใหม่";

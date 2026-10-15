@@ -200,9 +200,9 @@ $type_label = ($type === 'lost') ? 'แก้ไขประกาศของ�
 
                             <?php if ($type === 'found'): ?>
                             <div>
-                                <label class="block font-medium text-primary mb-2">รายละเอียดลับสำหรับยืนยันเจ้าของ</label>
-                                <textarea name="secret_description" rows="3" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น ของที่อยู่ภายในกระเป๋า รหัสเฉพาะ ตำหนิที่ซ่อนอยู่ หรือรายละเอียดที่มีเพียงเจ้าของตัวจริงเท่านั้นที่ควรทราบ"><?php echo htmlspecialchars($item['secret_description'] ?? ''); ?></textarea>
-                                <p class="text-xs text-gray-400 mt-2">ข้อมูลนี้จะไม่แสดงต่อสาธารณะ และใช้สำหรับการยืนยันความเป็นเจ้าของเท่านั้น</p>
+                                <label class="block font-medium text-primary mb-2">รายละเอียดลับสำหรับยืนยันเจ้าของ (ซ่อนลับ) <span class="text-red-500">*</span></label>
+                                <textarea name="secret_description" required rows="3" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all" placeholder="เช่น ของที่อยู่ภายในกระเป๋า รหัสเฉพาะ ตำหนิที่ซ่อนอยู่ หรือรายละเอียดที่มีเพียงเจ้าของตัวจริงเท่านั้นที่ควรทราบ"><?php echo htmlspecialchars($item['secret_description'] ?? ''); ?></textarea>
+                                <p class="text-xs text-gray-400 mt-2">จำเป็นต้องระบุจุดสังเกตเฉพาะหรือสิ่งที่มีเพียงเจ้าของตัวจริงเท่านั้นที่ทราบ (ข้อมูลนี้จะไม่แสดงต่อสาธารณะ)</p>
                             </div>
                             <?php endif; ?>
                         </div>

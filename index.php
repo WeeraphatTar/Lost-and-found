@@ -4,44 +4,46 @@ require_once 'includes/header.php';
 ?>
 
 <!-- Hero Section -->
-<section class="bg-white py-16 text-center border-b border-gray-200">
+<section class="py-16 text-center bg-[#f0f4f9] border-b border-slate-200/60">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 class="text-3xl md:text-4xl lg:text-[42px] font-bold text-primary mb-4">ระบบแจ้งของหายและติดตามทรัพย์สินคืน</h1>
-        <p class="text-gray-500 text-lg md:text-xl max-w-2xl mx-auto mb-8">พื้นที่ส่วนกลางที่ปลอดภัยและเชื่อถือได้ สำหรับการค้นหาของที่หายไป และส่งคืนของที่พบเจอให้กับเจ้าของตัวจริง</p>
+        <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-3">ระบบแจ้งของหายและติดตามทรัพย์สินคืน</h1>
+        <p class="text-slate-600 text-lg md:text-xl max-w-2xl mx-auto mb-8">พื้นที่ส่วนกลางที่ปลอดภัยและเชื่อถือได้ สำหรับการค้นหาของที่หายไป และส่งคืนของที่พบเจอให้กับเจ้าของตัวจริง</p>
         
-        <!-- Search Bar -->
-        <form action="<?php echo $base_url; ?>/pages/browse.php" method="GET" class="max-w-3xl mx-auto flex flex-col md:flex-row gap-3 mb-8">
-            <input type="text" name="q" class="flex-1 w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all placeholder-gray-500" placeholder="ค้นหาทรัพย์สิน เช่น กระเป๋าสตางค์, โทรศัพท์...">
-            <div class="w-full md:w-1/3 relative text-left">
-                <select id="category" name="category" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all">
-                    <option value="">ทุกหมวดหมู่</option>
-                    <option value="electronics">อุปกรณ์อิเล็กทรอนิกส์</option>
-                    <option value="walletandcash">กระเป๋าสตางค์และเงินสด</option>
-                    <option value="cardanddocument">บัตรและเอกสารสำคัญ</option>
-                    <option value="keyandkeycard">กุญแจและคีย์การ์ด</option>
-                    <option value="bagandluggage">กระเป๋าและสัมภาระ</option>
-                    <option value="clothingandjewelry">เครื่องแต่งกายและเครื่องประดับ</option>
-                    <option value="studymaterialandstationery">อุปกรณ์การเรียนและเครื่องเขียน</option>
-                    <option value="personalbelonging">ของใช้ส่วนตัว</option>
-                    <option value="vehicleandaccessory">ยานพาหนะและอุปกรณ์เสริม</option>
-                    <option value="others">อื่นๆ</option>
-                </select>
-            </div>
-            <button type="submit" class="w-full md:w-auto px-8 py-3 bg-primary text-white font-medium rounded-xl hover:bg-secondary transition shadow-md hover:shadow-lg">ค้นหา</button>
-        </form>
+        <!-- Search Container Card -->
+        <div class="max-w-2xl mx-auto bg-white p-2.5 sm:p-3 rounded-2xl shadow-md mb-6 border border-slate-200/80">
+            <form action="<?php echo $base_url; ?>/pages/browse.php" method="GET" class="flex flex-col md:flex-row gap-2.5">
+                <input type="text" name="q" class="flex-1 w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all text-sm text-slate-800 placeholder-slate-400" placeholder="ค้นหาทรัพย์สิน เช่น กระเป๋าสตางค์, โทรศัพท์...">
+                <div class="w-full md:w-1/3 relative text-left">
+                    <select id="category" name="category" class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white transition-all text-sm text-slate-800">
+                        <option value="">ทุกหมวดหมู่</option>
+                        <option value="electronics">อุปกรณ์อิเล็กทรอนิกส์</option>
+                        <option value="walletandcash">กระเป๋าสตางค์และเงินสด</option>
+                        <option value="cardanddocument">บัตรและเอกสารสำคัญ</option>
+                        <option value="keyandkeycard">กุญแจและคีย์การ์ด</option>
+                        <option value="bagandluggage">กระเป๋าและสัมภาระ</option>
+                        <option value="clothingandjewelry">เครื่องแต่งกายและเครื่องประดับ</option>
+                        <option value="studymaterialandstationery">อุปกรณ์การเรียนและเครื่องเขียน</option>
+                        <option value="personalbelonging">ของใช้ส่วนตัว</option>
+                        <option value="vehicleandaccessory">ยานพาหนะและอุปกรณ์เสริม</option>
+                        <option value="others">อื่นๆ</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full md:w-auto px-6 py-2.5 bg-[#0f172a] hover:bg-slate-900 text-white font-medium text-sm rounded-xl transition shadow-md hover:shadow-lg cursor-pointer whitespace-nowrap">ค้นหา</button>
+            </form>
+        </div>
 
         <!-- Call to Action Buttons -->
-        <div class="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="<?php echo $base_url; ?>/pages/report_lost.php" class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-secondary transition shadow-sm">แจ้งของหาย</a>
-            <a href="<?php echo $base_url; ?>/pages/report_found.php" class="px-6 py-3 border border-primary text-primary font-medium rounded-md hover:bg-primary hover:text-white transition bg-white">แจ้งพบของ</a>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center mt-5">
+            <a href="<?php echo $base_url; ?>/pages/report_lost.php" class="px-6 py-3 bg-[#0f172a] hover:bg-slate-900 text-white font-semibold rounded-xl transition shadow-md">แจ้งของหาย</a>
+            <a href="<?php echo $base_url; ?>/pages/report_found.php" class="px-6 py-3 bg-white border-2 border-slate-800 text-slate-800 hover:bg-slate-800 hover:text-white font-semibold rounded-xl transition shadow-sm">แจ้งพบของ</a>
         </div>
     </div>
 </section>
 
 <!-- Statistics / Recent Items (Placeholder) -->
-<section class="py-16 bg-background">
+<section class="py-16 bg-white border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 class="text-2xl font-bold text-center text-primary mb-10">ประกาศล่าสุด</h2>
+        <h2 class="text-xl md:text-2xl font-bold text-center text-slate-800 mb-10">ประกาศล่าสุด</h2>
         
 <?php
         require_once 'config/database.php';
@@ -58,7 +60,7 @@ require_once 'includes/header.php';
                     
                     $image_html = '';
                     if (!empty($item['image_path'])) {
-                        $image_html = '<img src="' . $base_url . '/' . htmlspecialchars($item['image_path']) . '" alt="item image" class="w-full h-full object-contain">';
+                        $image_html = '<img src="' . $base_url . '/' . htmlspecialchars($item['image_path']) . '" alt="item image" class="w-full h-full object-contain p-2">';
                     } else {
                         // SVG Placeholder
                         $image_html = '<svg class="w-12 h-12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>';
@@ -67,8 +69,8 @@ require_once 'includes/header.php';
                     $date_formatted = date('d M Y', strtotime($item['event_date']));
 
                     echo '
-                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1 flex flex-col">
-                        <div class="w-full aspect-video bg-slate-100 flex items-center justify-center border-b border-gray-200 text-gray-400 overflow-hidden relative">
+                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition duration-200 flex flex-col">
+                        <div class="w-full aspect-video bg-white flex items-center justify-center border-b border-slate-300 text-gray-400 overflow-hidden relative">
                             ' . $image_html . '
                         </div>
                         <div class="p-6 flex-1 flex flex-col">
@@ -100,6 +102,57 @@ require_once 'includes/header.php';
     </div>
 </section>
 
+<!-- How It Works Section (Stepper) -->
+<section class="py-16 bg-[#f0f4f9] border-t border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-xl md:text-2xl font-bold text-center text-slate-800 mb-10">ขั้นตอนการใช้งาน</h2>
+        
+        <div class="relative">
+            <!-- Horizontal Connecting Line for Desktop/Tablet (passing behind center of icons) -->
+            <div class="hidden md:block absolute top-10 left-[16%] right-[16%] h-0.5 bg-slate-300 z-0"></div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-6 relative z-10">
+                <!-- Step 1 -->
+                <div class="text-center flex flex-col items-center">
+                    <div class="w-20 h-20 bg-[#0f172a] rounded-2xl shadow-md flex items-center justify-center mb-5 hover:scale-105 transition-transform duration-200">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-[#0f172a] mb-2">1. ลงประกาศ</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed max-w-xs">
+                        กรอกรายละเอียดสิ่งของ สถานที่ และวันเวลาที่พบหรือหาย พร้อมแนบรูปถ่ายประกอบ
+                    </p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="text-center flex flex-col items-center">
+                    <div class="w-20 h-20 bg-[#0f172a] rounded-2xl shadow-md flex items-center justify-center mb-5 hover:scale-105 transition-transform duration-200">
+                        <img src="<?php echo $base_url; ?>/assets/images/smart-match.png" alt="Smart Match" class="w-8 h-8 object-contain">
+                    </div>
+                    <h3 class="text-lg font-bold text-[#0f172a] mb-2">2. ระบบจับคู่อัจฉริยะ (Smart Match)</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed max-w-xs">
+                        ระบบจะวิเคราะห์และเปรียบเทียบข้อมูล เพื่อจับคู่สิ่งของที่มีลักษณะคล้ายคลึงกันให้อัตโนมัติ
+                    </p>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="text-center flex flex-col items-center">
+                    <div class="w-20 h-20 bg-[#0f172a] rounded-2xl shadow-md flex items-center justify-center mb-5 hover:scale-105 transition-transform duration-200">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-[#0f172a] mb-2">3. พิสูจน์สิทธิ์และส่งคืน</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed max-w-xs">
+                        ยืนยันความเป็นเจ้าของผ่านระบบ และนัดหมายรับคืนสิ่งของอย่างปลอดภัย
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
 <!-- Load jQuery and Select2 -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -116,7 +169,8 @@ require_once 'includes/header.php';
         border: 1px solid #D1D5DB !important;
         border-radius: 0.75rem !important; /* rounded-xl */
         height: auto !important;
-        padding: 0.75rem 1rem !important; /* py-3 px-4 */
+        padding: 0.625rem 0.875rem !important; /* py-2.5 px-3.5 */
+        font-size: 0.875rem !important; /* text-sm */
         transition: all 0.2s;
     }
     .select2-container--default.select2-container--focus .select2-selection--single,

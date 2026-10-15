@@ -54,6 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($type === 'found' && (empty($secret_description) || empty(trim($secret_description)))) {
+        $_SESSION['error'] = "กรุณาระบุรายละเอียดลับสำหรับยืนยันเจ้าของ (*)";
+        header("Location: ../pages/report_found.php");
+        exit;
+    }
+
     // Construct location for backward compatibility
     $location = trim($location_detail . ' อ.' . $district . ' จ.' . $province);
 
@@ -199,30 +205,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $orig_kws = preg_split('/\s+/', $normalized_title, -1, PREG_SPLIT_NO_EMPTY);
         $search_tag3 = !empty($orig_kws[0]) ? "%" . mb_substr($orig_kws[0], 0, 4) . "%" : $search_tag1;
 
-        // Broad fetch for potential matches - Expanded to search multiple tags across all text fields (including image_labels)
-        $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, image_labels, province, district, location_detail, color, brand, model 
-                      FROM items 
-                      WHERE type = ? AND status = 'open' AND user_id != ? 
-                      AND (category = ? 
-                           OR (serial_number IS NOT NULL AND (serial_number LIKE ? OR serial_number = ?)) 
-                           OR title LIKE ? OR title LIKE ? OR title LIKE ?
-                           OR description LIKE ? OR description LIKE ?
-                           OR secret_description LIKE ? OR secret_description LIKE ?
-                           OR location LIKE ?)
-                      ORDER BY created_at DESC LIMIT 50";
-        
+        // Determine creator role
+        $user_role = $_SESSION['user_role'] ?? '';
+        if (empty($user_role) && $user_id > 0) {
+            $stmt_role = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+            $stmt_role->execute([$user_id]);
+            $user_role = $stmt_role->fetchColumn() ?: 'user';
+        }
+        $creator_is_admin = ($user_role === 'admin');
+
         $search_loc = "%" . mb_substr(normalize_text($location), 0, 4) . "%";
         $search_sn_like = "%" . ($searchable_sn ?? 'NON_EXISTENT_SN') . "%";
+
+        if ($creator_is_admin) {
+            // Admin role: match across all open items (including admin's own posts), but target_item.id != source_item.id always
+            $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, image_labels, province, district, location_detail, color, brand, model 
+                          FROM items 
+                          WHERE type = ? AND status = 'open' AND id != ? 
+                          AND (category = ? 
+                               OR (serial_number IS NOT NULL AND (serial_number LIKE ? OR serial_number = ?)) 
+                               OR title LIKE ? OR title LIKE ? OR title LIKE ?
+                               OR description LIKE ? OR description LIKE ?
+                               OR secret_description LIKE ? OR secret_description LIKE ?
+                               OR location LIKE ?)
+                          ORDER BY created_at DESC LIMIT 50";
+            $match_params = [
+                $target_type, $item_id, $category, 
+                $search_sn_like, $serial_number, 
+                $search_tag1, $search_tag2, $search_tag3,
+                $search_tag1, $search_tag2, 
+                $search_tag1, $search_sn_like,
+                $search_loc
+            ];
+        } else {
+            // Regular user: keep target_item.user_id != source_item.user_id condition
+            $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, image_labels, province, district, location_detail, color, brand, model 
+                          FROM items 
+                          WHERE type = ? AND status = 'open' AND user_id != ? AND id != ? 
+                          AND (category = ? 
+                               OR (serial_number IS NOT NULL AND (serial_number LIKE ? OR serial_number = ?)) 
+                               OR title LIKE ? OR title LIKE ? OR title LIKE ?
+                               OR description LIKE ? OR description LIKE ?
+                               OR secret_description LIKE ? OR secret_description LIKE ?
+                               OR location LIKE ?)
+                          ORDER BY created_at DESC LIMIT 50";
+            $match_params = [
+                $target_type, $user_id, $item_id, $category, 
+                $search_sn_like, $serial_number, 
+                $search_tag1, $search_tag2, $search_tag3,
+                $search_tag1, $search_tag2, 
+                $search_tag1, $search_sn_like,
+                $search_loc
+            ];
+        }
         
         $match_stmt = $pdo->prepare($match_sql);
-        $match_stmt->execute([
-            $target_type, $user_id, $category, 
-            $search_sn_like, $serial_number, 
-            $search_tag1, $search_tag2, $search_tag3,
-            $search_tag1, $search_tag2, 
-            $search_tag1, $search_sn_like,
-            $search_loc
-        ]);
+        $match_stmt->execute($match_params);
         $potential_matches = $match_stmt->fetchAll();
 
         $valid_matches = [];
@@ -250,19 +288,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $final_matches = array_slice($valid_matches, 0, 5);
 
         if (count($final_matches) > 0) {
-            // 1. Notify current user about the best match found
+            // 1. Notify current user (creator) about the best match found
             $top_match = $final_matches[0];
-            $msg_to_current = get_confidence_label($top_match['confidence'], $top_match['match_score']);
-            $msg_to_current .= " (รายการ: " . mb_substr($top_match['title'], 0, 20) . "...)";
+            if ($creator_is_admin && (int)$top_match['user_id'] === (int)$user_id) {
+                $msg_to_current = "ระบบพบรายการที่ตรงกัน (Smart Match): [" . mb_substr($top_match['title'], 0, 25) . "] ที่คุณเคยบันทึกไว้";
+            } else {
+                $msg_to_current = get_confidence_label($top_match['confidence'], $top_match['match_score']);
+                $msg_to_current .= " (รายการ: " . mb_substr($top_match['title'], 0, 20) . "...)";
+            }
             
             add_notification($pdo, $user_id, $msg_to_current, "pages/item_detail.php?id=" . $top_match['id']);
 
             // 2. Notify owners of matching items
             foreach ($final_matches as $match) {
-                $msg = get_confidence_label($match['confidence'], $match['match_score']);
-                $msg .= " (รายการ: " . mb_substr($title, 0, 20) . "...)";
+                $target_user_id = (int)$match['user_id'];
                 
-                add_notification($pdo, $match['user_id'], $msg, "pages/item_detail.php?id=$item_id");
+                if ($target_user_id === (int)$user_id) {
+                    if ($creator_is_admin) {
+                        // Admin: allow sending notification to admin even if target_user_id is the same Admin
+                        $msg = "ระบบพบรายการที่ตรงกัน (Smart Match): [" . mb_substr($title, 0, 25) . "] ที่คุณเคยบันทึกไว้";
+                        add_notification($pdo, $target_user_id, $msg, "pages/item_detail.php?id=$item_id");
+                    } else {
+                        // Regular user: skip self-notification
+                        continue;
+                    }
+                } else {
+                    $msg = get_confidence_label($match['confidence'], $match['match_score']);
+                    $msg .= " (รายการ: " . mb_substr($title, 0, 20) . "...)";
+                    add_notification($pdo, $target_user_id, $msg, "pages/item_detail.php?id=$item_id");
+                }
+            }
+
+            // Trigger Smart Matching Email Notifications
+            if (file_exists(__DIR__ . '/../helpers/email_notification_helper.php')) {
+                require_once __DIR__ . '/../helpers/email_notification_helper.php';
+                $new_item_data = $new_item;
+                $new_item_data['id'] = $item_id;
+                $new_item_data['type'] = $type;
+                dispatch_smart_match_notifications($pdo, $user_id, $new_item_data, $top_match, $final_matches);
             }
         }
         // ---------------------------------------

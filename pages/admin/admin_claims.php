@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'admin') 
 }
 
 $tab = isset($_GET['tab']) ? trim($_GET['tab']) : 'pending';
-$allowed_tabs = ['pending', 'approved', 'rejected', 'all'];
+$allowed_tabs = ['pending', 'approved', 'rejected', 'cancelled', 'all'];
 if (!in_array($tab, $allowed_tabs)) {
     $tab = 'pending';
 }
@@ -18,14 +18,14 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 // Build Query
 $sql = "
-    SELECT c.*, 
+    SELECT c.*, c.status AS claim_status,
            i.title as item_title, i.category, i.secret_description, i.serial_number as item_sn, i.image_path as item_image, i.status as item_status, i.location as item_location, i.created_at as item_created_at,
            u_c.first_name as claimant_first, u_c.last_name as claimant_last, u_c.email as claimant_email,
            u_f.first_name as finder_first, u_f.last_name as finder_last, u_f.email as finder_email
     FROM claims c
     JOIN items i ON c.item_id = i.id
-    JOIN users u_c ON c.claimant_id = u_c.id
-    JOIN users u_f ON c.finder_id = u_f.id
+    JOIN users u_c ON c.user_id = u_c.id
+    JOIN users u_f ON i.user_id = u_f.id
     WHERE 1=1
 ";
 
@@ -40,9 +40,11 @@ if (!empty($search)) {
 if ($tab === 'pending') {
     $sql .= " AND c.status IN ('pending', 'under_admin_review')";
 } elseif ($tab === 'approved') {
-    $sql .= " AND c.status IN ('approved', 'meeting_scheduled', 'completed')";
+    $sql .= " AND c.status IN ('approved', 'meeting_scheduled', 'completed', 'returned')";
 } elseif ($tab === 'rejected') {
-    $sql .= " AND c.status IN ('rejected', 'cancelled_mismatch')";
+    $sql .= " AND c.status = 'rejected'";
+} elseif ($tab === 'cancelled') {
+    $sql .= " AND c.status IN ('cancelled', 'cancelled_mismatch')";
 }
 
 $sql .= " ORDER BY c.created_at DESC";
@@ -53,8 +55,9 @@ $claims = $stmt->fetchAll();
 
 // Counts for sub-tabs
 $pending_count = (int)$pdo->query("SELECT COUNT(*) FROM claims WHERE status IN ('pending', 'under_admin_review')")->fetchColumn();
-$approved_count = (int)$pdo->query("SELECT COUNT(*) FROM claims WHERE status IN ('approved', 'meeting_scheduled', 'completed')")->fetchColumn();
-$rejected_count = (int)$pdo->query("SELECT COUNT(*) FROM claims WHERE status IN ('rejected', 'cancelled_mismatch')")->fetchColumn();
+$approved_count = (int)$pdo->query("SELECT COUNT(*) FROM claims WHERE status IN ('approved', 'meeting_scheduled', 'completed', 'returned')")->fetchColumn();
+$rejected_count = (int)$pdo->query("SELECT COUNT(*) FROM claims WHERE status = 'rejected'")->fetchColumn();
+$cancelled_count = (int)$pdo->query("SELECT COUNT(*) FROM claims WHERE status IN ('cancelled', 'cancelled_mismatch')")->fetchColumn();
 $total_count = (int)$pdo->query("SELECT COUNT(*) FROM claims")->fetchColumn();
 ?>
 
@@ -103,6 +106,11 @@ $total_count = (int)$pdo->query("SELECT COUNT(*) FROM claims")->fetchColumn();
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-bold <?php echo $tab === 'rejected' ? 'bg-rose-100 text-rose-800 border border-rose-200/80' : 'bg-slate-200 text-slate-700'; ?>"><?php echo $rejected_count; ?></span>
                 </a>
 
+                <a href="admin_claims.php?tab=cancelled" class="px-3.5 py-2 rounded-lg transition flex items-center gap-2 whitespace-nowrap <?php echo $tab === 'cancelled' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'; ?>">
+                    <span>ยกเลิกแล้ว</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold <?php echo $tab === 'cancelled' ? 'bg-slate-200 text-slate-800 border border-slate-300' : 'bg-slate-200 text-slate-700'; ?>"><?php echo $cancelled_count; ?></span>
+                </a>
+
                 <a href="admin_claims.php?tab=all" class="px-3.5 py-2 rounded-lg transition flex items-center gap-2 whitespace-nowrap <?php echo $tab === 'all' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'; ?>">
                     <span>ทั้งหมด (<?php echo $total_count; ?>)</span>
                 </a>
@@ -112,7 +120,7 @@ $total_count = (int)$pdo->query("SELECT COUNT(*) FROM claims")->fetchColumn();
             <form action="admin_claims.php" method="GET" class="flex items-center gap-2">
                 <input type="hidden" name="tab" value="<?php echo htmlspecialchars($tab); ?>">
                 <div class="relative w-full md:w-64">
-                    <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="ค้นหา #CLM-XXXXX, ชื่อของ..." class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-slate-800 shadow-2xs">
+                    <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="ค้นหา #CLM-XXX, ชื่อของ..." class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-slate-800 shadow-2xs">
                     <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
             </form>
@@ -217,13 +225,13 @@ if ($tab === 'pending') {
                                     <!-- Sub-card Header -->
                                     <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                                         <div class="flex items-center gap-2.5">
-                                            <span class="bg-indigo-50 text-indigo-700 border border-indigo-200/80 font-mono font-semibold text-xs px-2.5 py-1 rounded-md shadow-2xs">#CLM-<?php echo str_pad($c['id'], 5, '0', STR_PAD_LEFT); ?></span>
+                                            <span class="bg-indigo-50 text-indigo-700 border border-indigo-200/80 font-mono font-semibold text-xs px-2.5 py-1 rounded-md shadow-2xs">#CLM-<?php echo str_pad($c['id'], 3, '0', STR_PAD_LEFT); ?></span>
                                             <span class="text-xs text-slate-500 font-medium">ยื่นเมื่อ <?php echo date('d M Y H:i', strtotime($c['created_at'])); ?></span>
-                                            <?php if ($c['status'] === 'under_admin_review'): ?>
+                                            <?php if (($c['claim_status'] ?? $c['status']) === 'under_admin_review'): ?>
                                                 <span class="px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 font-semibold rounded-full text-[11px]">มีข้อพิพาท/ส่ง Admin</span>
                                             <?php endif; ?>
                                         </div>
-                                        <a href="<?php echo $base_url; ?>/pages/claim_detail.php?id=<?php echo $c['id']; ?>&ref=admin_claims" class="text-xs text-slate-600 hover:text-slate-900 font-semibold hover:underline inline-flex items-center gap-1">
+                                        <a href="<?php echo $base_url; ?>/pages/admin/admin_claim_detail.php?id=<?php echo $c['id']; ?>" class="text-xs text-slate-600 hover:text-slate-900 font-semibold hover:underline inline-flex items-center gap-1">
                                             ดูรายละเอียดเต็ม &rarr;
                                         </a>
                                     </div>
@@ -242,7 +250,7 @@ if ($tab === 'pending') {
                                             </div>
                                             <div>
                                                 <span class="font-bold text-slate-500">หลักฐานที่ยื่น:</span>
-                                                <p class="text-slate-700 mt-0.5 bg-slate-50 p-2.5 rounded-lg border border-slate-100"><?php echo htmlspecialchars($c['proof_description']); ?></p>
+                                                <p class="text-slate-700 mt-0.5 bg-slate-50 p-2.5 rounded-lg border border-slate-100"><?php echo htmlspecialchars($c['description'] ?? $c['proof_description'] ?? 'ไม่ได้ระบุรายละเอียดเพิ่มเติม'); ?></p>
                                             </div>
                                             <?php if (!empty($c['provided_serial_number'])): ?>
                                                 <div>
@@ -309,26 +317,37 @@ if ($tab === 'pending') {
                         <!-- Header Banner -->
                         <div class="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-4">
                             <div class="flex flex-wrap items-center gap-3">
-                                <span class="bg-indigo-50/80 text-indigo-700 border border-indigo-200/80 font-mono font-semibold text-xs px-2.5 py-1 rounded-md inline-flex items-center shadow-2xs">#CLM-<?php echo str_pad($c['id'], 5, '0', STR_PAD_LEFT); ?></span>
+                                <span class="bg-indigo-50/80 text-indigo-700 border border-indigo-200/80 font-mono font-semibold text-xs px-2.5 py-1 rounded-md inline-flex items-center shadow-2xs">#CLM-<?php echo str_pad($c['id'], 3, '0', STR_PAD_LEFT); ?></span>
                                 <div>
                                     <div class="flex flex-wrap items-center gap-2">
                                         <h3 class="font-bold text-slate-900 text-base sm:text-lg"><?php echo htmlspecialchars($c['item_title']); ?></h3>
                                         
-                                        <?php if ($c['status'] === 'under_admin_review' || $c['status'] === 'pending'): ?>
-                                            <span class="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 font-semibold rounded-full flex items-center gap-1.5 text-xs">
-                                                <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-                                                รอพิจารณา
-                                            </span>
-                                        <?php elseif (in_array($c['status'], ['approved', 'meeting_scheduled', 'completed'])): ?>
-                                            <span class="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold rounded-full flex items-center gap-1.5 text-xs">
-                                                <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                                                <?php echo $c['status'] === 'completed' ? 'ส่งมอบสำเร็จ' : 'อนุมัติแล้ว'; ?>
-                                            </span>
-                                        <?php elseif ($c['status'] === 'rejected'): ?>
+                                        <?php 
+                                            $c_status = $c['claim_status'] ?? $c['status'] ?? '';
+                                            $i_status = $c['item_status'] ?? '';
+                                        ?>
+                                        <?php if ($c_status === 'rejected'): ?>
                                             <span class="px-3 py-1 bg-rose-50 text-rose-700 border border-rose-200 font-semibold rounded-full flex items-center gap-1.5 text-xs">
                                                 <span class="w-2 h-2 bg-rose-500 rounded-full"></span>
                                                 ปฏิเสธคำร้อง
                                             </span>
+                                        <?php elseif (in_array($c_status, ['pending', 'under_admin_review'])): ?>
+                                            <span class="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 font-semibold rounded-full flex items-center gap-1.5 text-xs">
+                                                <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+                                                รอพิจารณา
+                                            </span>
+                                        <?php elseif (in_array($c_status, ['approved', 'meeting_scheduled', 'completed', 'returned'])): ?>
+                                            <?php if (in_array($i_status, ['resolved', 'closed']) || in_array($c_status, ['completed', 'returned'])): ?>
+                                                <span class="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold rounded-full flex items-center gap-1.5 text-xs">
+                                                    <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                                    ส่งมอบสำเร็จ
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold rounded-full flex items-center gap-1.5 text-xs">
+                                                    <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                                    อนุมัติแล้ว
+                                                </span>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             <span class="px-3 py-1 bg-slate-50 text-slate-700 border border-slate-200 font-medium rounded-full flex items-center gap-1.5 text-xs">
                                                 <span class="w-2 h-2 bg-slate-400 rounded-full"></span>
@@ -343,7 +362,7 @@ if ($tab === 'pending') {
                             </div>
                             
                             <div class="flex items-center gap-2.5 text-xs">
-                                <a href="<?php echo $base_url; ?>/pages/claim_detail.php?id=<?php echo $c['id']; ?>&ref=admin_claims" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-semibold transition flex items-center gap-1.5 shadow-xs">
+                                <a href="<?php echo $base_url; ?>/pages/admin/admin_claim_detail.php?id=<?php echo $c['id']; ?>" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-semibold transition flex items-center gap-1.5 shadow-xs">
                                     <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                     ดูคำร้องเต็ม
                                 </a>
@@ -357,7 +376,7 @@ if ($tab === 'pending') {
                                 <div class="font-bold text-slate-900 mb-3"><?php echo htmlspecialchars($c['claimant_first'] . ' ' . $c['claimant_last']); ?> <span class="text-slate-500 font-normal">(<?php echo htmlspecialchars($c['claimant_email']); ?>)</span></div>
                                 
                                 <div class="bg-white p-3 rounded-lg border border-slate-200 space-y-2 text-xs text-slate-700">
-                                    <div><span class="font-bold text-slate-500">หลักฐานที่ยื่น:</span> <?php echo htmlspecialchars($c['proof_description']); ?></div>
+                                    <div><span class="font-bold text-slate-500">หลักฐานที่ยื่น:</span> <?php echo htmlspecialchars($c['description'] ?? $c['proof_description'] ?? 'ไม่ได้ระบุรายละเอียดเพิ่มเติม'); ?></div>
                                     <?php if (!empty($c['provided_serial_number'])): ?>
                                         <div><span class="font-bold text-slate-500">Serial Number ที่ระบุ:</span> <span class="font-mono bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-800"><?php echo htmlspecialchars($c['provided_serial_number']); ?></span></div>
                                     <?php endif; ?>
@@ -403,21 +422,44 @@ function toggleAccordion(id) {
 function handleAdminDecisionSubmit(form, e) {
     const notesInput = form.querySelector('[name="admin_notes"]');
     const notesValue = notesInput ? notesInput.value.trim() : '';
-    const decision = form.querySelector('[name="decision"]') ? form.querySelector('[name="decision"]').value : '';
+    const decisionInput = form.querySelector('[name="decision"]');
+    const decision = decisionInput ? decisionInput.value : '';
+
+    const resetButtons = () => {
+        const submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+        submitButtons.forEach(function(btn) {
+            btn.dataset.submitting = 'false';
+            btn.style.opacity = '';
+            btn.style.pointerEvents = '';
+            btn.disabled = false;
+        });
+    };
 
     if (!notesValue) {
         alert('กรุณากรอกบันทึกเหตุผลก่อนดำเนินการอนุมัติหรือปฏิเสธ');
         if (notesInput) {
             notesInput.focus();
         }
+        if (e && e.preventDefault) e.preventDefault();
+        resetButtons();
         return false;
     }
 
+    let isConfirmed = false;
     if (decision === 'approve') {
-        return confirm('ยืนยันอนุมัติคำร้องนี้ใช่หรือไม่? ระบบจะทำการปฏิเสธคำร้องอื่นๆ ของสิ่งของชิ้นนี้ให้อัตโนมัติ');
+        isConfirmed = confirm('ยืนยันอนุมัติคำร้องนี้ใช่หรือไม่? ระบบจะทำการปฏิเสธคำร้องอื่นๆ ของสิ่งของชิ้นนี้ให้อัตโนมัติ');
     } else if (decision === 'reject') {
-        return confirm('ยืนยันปฏิเสธคำร้องนี้ใช่หรือไม่?');
+        isConfirmed = confirm('ยืนยันปฏิเสธคำร้องนี้ใช่หรือไม่?');
+    } else {
+        isConfirmed = true;
     }
+
+    if (!isConfirmed) {
+        if (e && e.preventDefault) e.preventDefault();
+        resetButtons();
+        return false;
+    }
+
     return true;
 }
 </script>

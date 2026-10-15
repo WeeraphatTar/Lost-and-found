@@ -15,7 +15,7 @@ if ($item_id <= 0) {
 
 try {
     // ดึงข้อมูล Item พร้อมข้อมูลผู้ใช้ที่โพสต์
-    $sql = "SELECT i.*, u.first_name, u.last_name 
+    $sql = "SELECT i.*, u.first_name, u.last_name, u.role as creator_role 
             FROM items i 
             JOIN users u ON i.user_id = u.id 
             WHERE i.id = ?";
@@ -167,13 +167,13 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                     </div>
                 </div>
 
-                <div class="mb-4">
+                <div class="mt-6 mb-6 pb-6 border-b border-gray-200">
                     <h3 class="text-lg font-bold text-primary mb-2">รายละเอียดเพิ่มเติม</h3>
                     <div class="text-gray-700 leading-relaxed whitespace-pre-wrap"><?php echo htmlspecialchars($item['description']); ?></div>
                 </div>
 
                 <?php if (!empty($item['serial_number']) && isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
-                <div class="mb-4">
+                <div class="mb-6 pb-6 border-b border-gray-200">
                     <h3 class="text-lg font-bold text-primary mb-2">เลขซีเรียล / ข้อมูลระบุตัวตน</h3>
                     <div class="text-gray-700 bg-gray-100 px-4 py-2 rounded inline-block font-mono"><?php echo htmlspecialchars($item['serial_number']); ?></div>
                 </div>
@@ -188,7 +188,7 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
 
                 if (($is_owner || $is_admin) && ($has_storage || $has_secret)): 
                 ?>
-                    <div class="mb-4 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5">
+                    <div class="mb-6 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5">
                         <div class="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
                             <span class="text-xs font-semibold text-slate-700">ข้อมูลสำหรับผู้พบของ</span>
                             <span class="text-xs text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">เฉพาะคุณที่มองเห็น</span>
@@ -210,7 +210,7 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                     </div>
                 <?php endif; ?>
 
-                <div class="mt-auto border-t border-gray-200 pt-4">
+                <div class="mt-auto pt-2">
                     <h3 class="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider">ผู้ลงประกาศ</h3>
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0">
@@ -224,7 +224,7 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
                         // ตรวจสอบข้อมูล Claim เดิมของผู้ใช้นี้สำหรับประกาศนี้
                         $user_claim = null;
                         if (isset($_SESSION['user_id'])) {
-                            $claim_check_stmt = $pdo->prepare("SELECT id, status FROM claims WHERE item_id = ? AND claimant_id = ? ORDER BY id DESC LIMIT 1");
+                            $claim_check_stmt = $pdo->prepare("SELECT id, status FROM claims WHERE item_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1");
                             $claim_check_stmt->execute([$item['id'], $_SESSION['user_id']]);
                             $user_claim = $claim_check_stmt->fetch();
                         }
@@ -309,7 +309,13 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
 
 
 
-        <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $item['user_id']): ?>
+        <?php 
+        $current_user_id = $_SESSION['user_id'] ?? 0;
+        $current_user_role = $_SESSION['user_role'] ?? '';
+        $creator_is_admin = (($item['creator_role'] ?? '') === 'admin');
+
+        if ($current_user_id > 0 && ($current_user_id == $item['user_id'] || $current_user_role === 'admin')): 
+        ?>
             <?php
             $target_type = ($item['type'] === 'lost') ? 'found' : 'lost';
             
@@ -334,30 +340,53 @@ $posted_date = date('d M Y H:i', strtotime($item['created_at']));
             $orig_kws = preg_split('/\s+/', $normalized_title, -1, PREG_SPLIT_NO_EMPTY);
             $search_tag3 = !empty($orig_kws[0]) ? "%" . mb_substr($orig_kws[0], 0, 4) . "%" : $search_tag1;
 
-            // ใช้ Logic ที่กว้างขึ้นในการดึงข้อมูลมาคำนวณ Smart Match
-            $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, event_date, image_path, image_labels, province, district, location_detail, color, brand, model 
-                          FROM items 
-                          WHERE type = ? AND status = 'open' AND user_id != ? 
-                          AND (category = ? 
-                               OR (serial_number IS NOT NULL AND (serial_number LIKE ? OR serial_number = ?)) 
-                               OR title LIKE ? OR title LIKE ? OR title LIKE ?
-                               OR description LIKE ? OR description LIKE ?
-                               OR secret_description LIKE ? OR secret_description LIKE ?
-                               OR location LIKE ?)
-                          ORDER BY created_at DESC LIMIT 50";
-            
             $search_loc = "%" . mb_substr(normalize_text($item['location']), 0, 4) . "%";
             $search_sn_like = "%" . ($searchable_sn ?? 'NON_EXISTENT_SN') . "%";
-            
+
+            if ($creator_is_admin) {
+                // Admin creator: match across all items (including admin's own posts), target_item.id != source_item.id always
+                $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, event_date, image_path, image_labels, province, district, location_detail, color, brand, model 
+                              FROM items 
+                              WHERE type = ? AND status = 'open' AND id != ? 
+                              AND (category = ? 
+                                   OR (serial_number IS NOT NULL AND (serial_number LIKE ? OR serial_number = ?)) 
+                                   OR title LIKE ? OR title LIKE ? OR title LIKE ?
+                                   OR description LIKE ? OR description LIKE ?
+                                   OR secret_description LIKE ? OR secret_description LIKE ?
+                                   OR location LIKE ?)
+                              ORDER BY created_at DESC LIMIT 50";
+                $match_params = [
+                    $target_type, $item['id'], $item['category'], 
+                    $search_sn_like, $item['serial_number'], 
+                    $search_tag1, $search_tag2, $search_tag3,
+                    $search_tag1, $search_tag2, 
+                    $search_tag1, $search_sn_like,
+                    $search_loc
+                ];
+            } else {
+                // Regular user creator: keep target_item.user_id != source_item.user_id condition and target_item.id != source_item.id
+                $match_sql = "SELECT id, user_id, title, category, location, serial_number, description, secret_description, event_date, image_path, image_labels, province, district, location_detail, color, brand, model 
+                              FROM items 
+                              WHERE type = ? AND status = 'open' AND user_id != ? AND id != ? 
+                              AND (category = ? 
+                                   OR (serial_number IS NOT NULL AND (serial_number LIKE ? OR serial_number = ?)) 
+                                   OR title LIKE ? OR title LIKE ? OR title LIKE ?
+                                   OR description LIKE ? OR description LIKE ?
+                                   OR secret_description LIKE ? OR secret_description LIKE ?
+                                   OR location LIKE ?)
+                              ORDER BY created_at DESC LIMIT 50";
+                $match_params = [
+                    $target_type, $item['user_id'], $item['id'], $item['category'], 
+                    $search_sn_like, $item['serial_number'], 
+                    $search_tag1, $search_tag2, $search_tag3,
+                    $search_tag1, $search_tag2, 
+                    $search_tag1, $search_sn_like,
+                    $search_loc
+                ];
+            }
+
             $match_stmt = $pdo->prepare($match_sql);
-            $match_stmt->execute([
-                $target_type, $_SESSION['user_id'], $item['category'], 
-                $search_sn_like, $item['serial_number'], 
-                $search_tag1, $search_tag2, $search_tag3,
-                $search_tag1, $search_tag2, 
-                $search_tag1, $search_sn_like,
-                $search_loc
-            ]);
+            $match_stmt->execute($match_params);
             $potential_matches = $match_stmt->fetchAll();
 
             $smart_matches = [];

@@ -1,39 +1,83 @@
 <?php
+// Include helpers
+require_once __DIR__ . '/../helpers/csrf_helper.php';
+require_once __DIR__ . '/../config/database.php';
+
 // เริ่มต้น session หากยังไม่มีการเริ่ม
 if (session_status() === PHP_SESSION_NONE) {
+    $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => '',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
     session_start();
 }
 
 // หาชื่อไฟล์ปัจจุบันเพื่อทำ Active State
 $current_page = basename($_SERVER['PHP_SELF']);
 
-// ตรวจสอบ Cookie Remember Me
-if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && isset($_COOKIE['remember_user'])) {
-    require_once __DIR__ . '/../config/database.php';
-    
-    $user_id = $_COOKIE['remember_user'];
-    $token = $_COOKIE['remember_token'];
-    
-    try {
-        $stmt = $pdo->prepare("SELECT id, first_name, role, remember_token FROM users WHERE id = ?");
-        $stmt->execute([$user_id]);
-        $user = $stmt->fetch();
-        
-        // ตรวจสอบว่า token ตรงกันหรือไม่
-        if ($user && $user['remember_token'] === $token) {
-            // เข้าสู่ระบบอัตโนมัติ
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user_name'] = $user['first_name'];
-            $_SESSION['user_role'] = $user['role'];
-        } else {
-            // หากไม่ตรง ให้ลบ Cookie ทิ้งเพื่อความปลอดภัย
-            setcookie('remember_token', '', time() - 3600, "/");
-            setcookie('remember_user', '', time() - 3600, "/");
+// ตรวจสอบ Cookie Remember Me (Selector / Validator Hash Pattern)
+if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_me'])) {
+    $parts = explode(':', $_COOKIE['remember_me']);
+    if (count($parts) === 2) {
+        $selector = $parts[0];
+        $validator = $parts[1];
+
+        try {
+            $stmt = $pdo->prepare("SELECT urt.id as token_id, urt.token_hash, u.id, u.first_name, u.role, u.session_version, u.is_verified, u.is_banned FROM user_remember_tokens urt JOIN users u ON urt.user_id = u.id WHERE urt.selector = ? AND urt.expires_at > NOW()");
+            $stmt->execute([$selector]);
+            $token_data = $stmt->fetch();
+
+            if ($token_data && hash_equals($token_data['token_hash'], hash('sha256', $validator)) && $token_data['is_verified'] == 1 && empty($token_data['is_banned'])) {
+                session_regenerate_id(true);
+                $_SESSION['user_id'] = $token_data['id'];
+                $_SESSION['user_name'] = $token_data['first_name'];
+                $_SESSION['user_role'] = $token_data['role'];
+                $_SESSION['session_version'] = $token_data['session_version'];
+            } else {
+                // Invalid token or user banned/unverified
+                $del_stmt = $pdo->prepare("DELETE FROM user_remember_tokens WHERE selector = ?");
+                $del_stmt->execute([$selector]);
+                setcookie('remember_me', '', time() - 3600, "/", "", isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on', true);
+            }
+        } catch (PDOException $e) {
+            // Ignore DB error
         }
-    } catch (PDOException $e) {
-        // เงียบไว้หากเกิดข้อผิดพลาดฐานข้อมูล
     }
 }
+
+// Global Session Invalidation Check (ตรวจสอบว่า session_version ตรงกับ DB หรือไม่)
+if (isset($_SESSION['user_id'])) {
+    try {
+        $check_stmt = $pdo->prepare("SELECT session_version, is_banned, is_verified FROM users WHERE id = ?");
+        $check_stmt->execute([$_SESSION['user_id']]);
+        $current_user_db = $check_stmt->fetch();
+
+        if (!$current_user_db || !empty($current_user_db['is_banned']) || $current_user_db['session_version'] != ($_SESSION['session_version'] ?? 0)) {
+            // Invalidate current session
+            $_SESSION = [];
+            if (ini_get("session.use_cookies")) {
+                $params = session_get_cookie_params();
+                setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+            }
+            session_destroy();
+            setcookie('remember_me', '', time() - 3600, "/", "", isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on', true);
+
+            // Re-start empty session for error message
+            session_start();
+            $_SESSION['error'] = "เซสชันของคุณหมดอายุ หรือมีการเปลี่ยนรหัสผ่านจากอุปกรณ์อื่น กรุณาเข้าสู่ระบบใหม่";
+            header("Location: " . (isset($base_url) ? $base_url : 'http://localhost/lost-and-found') . "/pages/login.php");
+            exit;
+        }
+    } catch (PDOException $e) {
+        // Ignore
+    }
+}
+
 
 // กำหนด Base URL ของโปรเจค
 $base_url = 'http://localhost/lost-and-found';
@@ -42,8 +86,7 @@ $nav_items = [
     '/index.php' => 'หน้าหลัก',
     '/pages/browse.php' => 'รายการประกาศ',
     '/pages/report_lost.php' => 'แจ้งของหาย',
-    '/pages/report_found.php' => 'แจ้งพบของ',
-    '/pages/support.php' => 'ศูนย์ช่วยเหลือ'
+    '/pages/report_found.php' => 'แจ้งพบของ'
 ];
 
 // Notification logic
@@ -88,7 +131,7 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
                         primary: '#0A192F',
                         secondary: '#172A45',
                         accent: '#3b82f6',
-                        background: '#F8F9FA'
+                        background: '#f0f4f8'
                     },
                     fontFamily: {
                         sans: ['Prompt', 'sans-serif'],
@@ -100,15 +143,43 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
     
     <!-- Custom Styles (for leftovers/overrides) -->
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/style.css">
+    <style>
+        /* Suppress MS Edge / IE native password reveal button */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+    </style>
 </head>
-<body class="<?php echo $is_admin_page ? 'bg-slate-900 text-gray-800 font-sans min-h-screen flex flex-col overflow-x-hidden' : 'bg-background text-gray-800 font-sans min-h-screen flex flex-col overflow-y-scroll'; ?>">
+<?php 
+$body_classes = 'font-sans min-h-screen flex flex-col ';
+if (!empty($hide_nav_footer)) {
+    // Auth layout: login.php, register.php
+    $body_classes .= 'bg-[#f1f5f9] text-gray-800';
+} elseif ($is_admin_page) {
+    // Admin portal pages
+    $body_classes .= 'bg-slate-900 text-gray-800 overflow-x-hidden';
+} elseif ($current_page === 'index.php') {
+    // index.php untouched
+    $body_classes .= 'bg-[#F8F9FA] text-gray-800 overflow-y-scroll';
+} else {
+    // All User Role pages
+    $body_classes .= 'bg-[#f0f4f8] text-gray-800 overflow-y-scroll';
+}
+?>
+<body class="<?php echo $body_classes; ?>">
 
+    <?php if (empty($hide_nav_footer)): ?>
     <nav class="bg-primary shadow-md sticky top-0 z-50">
         <div class="w-full px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-20 relative">
                 <!-- Logo (Left) -->
                 <div class="flex-shrink-0 flex items-center gap-3">
-                    <a href="<?php echo $base_url; ?>/index.php" class="text-white text-2xl font-bold hover:text-gray-300 tracking-wider">Lost & Found</a>
+                    <a href="<?php echo $base_url; ?>/index.php" class="flex items-center hover:opacity-90 transition">
+                        <img src="<?php echo $base_url; ?>/assets/images/logo-white%20v2.png" alt="Lost & Found" class="h-8 md:h-9 w-auto object-contain">
+                    </a>
                 </div>
                 
                 <!-- Desktop Menu (Center - Absolute Position) Only shown on public pages for non-admin users -->
@@ -119,7 +190,7 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
                             $item_page = basename($url);
                             $is_active = ($current_page == $item_page);
                             if ($is_active) {
-                                echo '<a href="'.$base_url.$url.'" class="text-white font-bold border-b-2 border-accent pb-1 transition">'.$label.'</a>';
+                                echo '<a href="'.$base_url.$url.'" class="text-white font-bold border-b-2 border-white pb-1 transition">'.$label.'</a>';
                             } else {
                                 echo '<a href="'.$base_url.$url.'" class="text-gray-400 hover:text-white transition">'.$label.'</a>';
                             }
@@ -192,12 +263,9 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
 
                         <!-- User Profile Dropdown -->
                         <div class="relative" id="profile-wrapper">
-                            <button id="profile-btn" class="flex items-center space-x-3 p-1.5 rounded-full hover:bg-secondary transition focus:outline-none border border-gray-700/50">
-                                <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white font-bold text-sm shadow-inner">
-                                    <?php echo mb_substr($_SESSION['user_name'], 0, 1); ?>
-                                </div>
-                                <span class="text-gray-200 text-sm font-medium pr-1"><?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
-                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            <button id="profile-btn" class="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white font-medium text-sm transition duration-150 focus:outline-none">
+                                <span><?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
 
                              <div id="profile-dropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-[60] overflow-hidden">
@@ -237,7 +305,7 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
                                         </a>
                                         <a href="<?php echo $base_url; ?>/pages/claims.php" class="flex items-center px-4 py-2.5 text-gray-700 hover:bg-gray-50 hover:text-accent transition font-medium">
                                             <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                                            รายการ Claim ของฉัน
+                                            รายการคำร้อง
                                         </a>
                                         <a href="<?php echo $base_url; ?>/pages/profile.php" class="flex items-center px-4 py-2.5 text-gray-700 hover:bg-gray-50 hover:text-accent transition font-medium">
                                             <svg class="w-4 h-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -245,18 +313,22 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
                                         </a>
                                     <?php endif; ?>
                                 </div>
-                                <div class="border-t border-gray-100 py-1">
-                                    <a href="<?php echo $base_url; ?>/actions/auth_action.php?action=logout" onclick="return confirm('คุณต้องการออกจากระบบใช่หรือไม่?');" class="flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition font-medium">
-                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-6 0v-1m6-10V7a3 3 0 00-6 0v1"></path></svg>
-                                        ออกจากระบบ
-                                    </a>
+                                 <div class="border-t border-gray-100 py-1">
+                                    <form action="<?php echo $base_url; ?>/actions/auth_action.php" method="POST" class="w-full">
+                                        <?php render_csrf_input(); ?>
+                                        <input type="hidden" name="action" value="logout">
+                                        <button type="submit" onclick="return confirm('คุณต้องการออกจากระบบใช่หรือไม่?');" class="flex items-center w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition font-medium">
+                                            <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-6 0v-1m6-10V7a3 3 0 00-6 0v1"></path></svg>
+                                            ออกจากระบบ
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
 
                         </div>
                     <?php else: ?>
                         <a href="<?php echo $base_url; ?>/pages/login.php" class="px-6 py-3 border border-white text-white rounded hover:bg-white hover:text-primary transition text-sm font-medium whitespace-nowrap">เข้าสู่ระบบ</a>
-                        <a href="<?php echo $base_url; ?>/pages/register.php" class="px-6 py-3 bg-accent text-white rounded hover:bg-blue-600 transition text-sm font-medium shadow-md whitespace-nowrap">สมัครสมาชิก</a>
+                        <a href="<?php echo $base_url; ?>/pages/register.php" class="px-6 py-3 bg-white text-slate-900 rounded hover:bg-slate-100 transition text-sm font-medium whitespace-nowrap">สมัครสมาชิก</a>
                     <?php endif; ?>
                 </div>
 
@@ -299,7 +371,7 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
                         $claims_mobile_active = ($current_page == 'claims.php') ? 'text-white bg-secondary border-l-4 border-accent font-bold' : 'text-gray-400 hover:text-white hover:bg-secondary';
                         ?>
                         <a href="<?php echo $base_url; ?>/pages/dashboard.php" class="block px-4 py-3 rounded-md text-base transition <?php echo $dash_mobile_active; ?>">จัดการประกาศของฉัน</a>
-                        <a href="<?php echo $base_url; ?>/pages/claims.php" class="block px-4 py-3 rounded-md text-base transition <?php echo $claims_mobile_active; ?>">รายการ Claim ของฉัน</a>
+                        <a href="<?php echo $base_url; ?>/pages/claims.php" class="block px-4 py-3 rounded-md text-base transition <?php echo $claims_mobile_active; ?>">รายการคำร้อง</a>
                         <?php if ($is_user_admin): ?>
                             <a href="<?php echo $base_url; ?>/pages/admin/admin_claims.php" class="block px-4 py-3 rounded-md text-base text-blue-300 font-bold hover:bg-secondary transition">จัดการ Claim (Admin)</a>
                         <?php endif; ?>
@@ -310,11 +382,15 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
                             <?php endif; ?>
                         </a>
                         <a href="<?php echo $base_url; ?>/pages/profile.php" class="block px-4 py-3 rounded-md text-base text-gray-400 hover:text-white hover:bg-secondary transition">ตั้งค่าโปรไฟล์</a>
-                        <a href="<?php echo $base_url; ?>/actions/auth_action.php?action=logout" onclick="return confirm('คุณต้องการออกจากระบบใช่หรือไม่?');" class="block w-full text-center px-4 py-3 border border-red-400/50 text-red-400 rounded-md hover:bg-red-500 hover:text-white transition mt-4">ออกจากระบบ</a>
+                        <form action="<?php echo $base_url; ?>/actions/auth_action.php" method="POST" class="mt-4">
+                            <?php render_csrf_input(); ?>
+                            <input type="hidden" name="action" value="logout">
+                            <button type="submit" onclick="return confirm('คุณต้องการออกจากระบบใช่หรือไม่?');" class="block w-full text-center px-4 py-3 border border-red-400/50 text-red-400 rounded-md hover:bg-red-500 hover:text-white transition">ออกจากระบบ</button>
+                        </form>
                     <?php else: ?>
                         <div class="grid grid-cols-2 gap-3 px-2">
                             <a href="<?php echo $base_url; ?>/pages/login.php" class="block w-full text-center px-4 py-3 border border-white text-white rounded hover:bg-secondary transition font-medium">เข้าสู่ระบบ</a>
-                            <a href="<?php echo $base_url; ?>/pages/register.php" class="block w-full text-center px-4 py-3 bg-accent text-white rounded hover:bg-blue-600 transition font-medium shadow-sm">สมัครสมาชิก</a>
+                            <a href="<?php echo $base_url; ?>/pages/register.php" class="block w-full text-center px-4 py-3 bg-white text-slate-900 rounded hover:bg-slate-100 transition font-medium">สมัครสมาชิก</a>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -325,9 +401,9 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
     <!-- Script for mobile menu and notifications -->
     <script>
         // Mobile Menu Toggle
-        document.getElementById('mobile-menu-btn').addEventListener('click', function() {
+        document.getElementById('mobile-menu-btn')?.addEventListener('click', function() {
             var menu = document.getElementById('mobile-menu');
-            menu.classList.toggle('hidden');
+            if (menu) menu.classList.toggle('hidden');
         });
 
         // Dropdown Toggles (Desktop)
@@ -356,10 +432,11 @@ $notifications_url = $is_user_admin ? $base_url . '/pages/admin/admin_notificati
                 const btnId = dropdown.id.replace('-dropdown', '-btn');
                 const btn = document.getElementById(btnId);
                 if (!dropdown.classList.contains('hidden')) {
-                    if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
+                    if (!dropdown.contains(e.target) && !btn?.contains(e.target)) {
                         dropdown.classList.add('hidden');
                     }
                 }
             });
         });
     </script>
+    <?php endif; ?>

@@ -36,6 +36,13 @@ switch ($action) {
 
         add_notification($pdo, $target_user_id, "บัญชีของคุณถูกระงับการใช้งานเนื่องจาก: " . $ban_reason, "pages/profile.php");
         log_admin_action($pdo, $admin_id, 'ban_user', "ระงับสิทธิ์การใช้งานผู้ใช้ ID #{$target_user_id} เนื่องจาก: {$ban_reason}");
+
+        // Email Notification: Notify user about ban
+        if (file_exists(__DIR__ . '/../helpers/email_notification_helper.php')) {
+            require_once __DIR__ . '/../helpers/email_notification_helper.php';
+            dispatch_moderation_email($pdo, 'ban_user', $target_user_id, 0, $ban_reason);
+        }
+
         $_SESSION['success'] = "ระงับสิทธิ์การใช้งานบัญชีผู้ใช้สำเร็จเรียบร้อยแล้ว";
         header("Location: " . $redirect_url);
         exit;
@@ -102,6 +109,13 @@ switch ($action) {
                 add_notification($pdo, $item['user_id'], "ประกาศ \"{$item['title']}\" ของคุณถูกซ่อนโดยผู้ดูแลระบบ {$reason_text}", "pages/profile.php");
                 
                 log_admin_action($pdo, $admin_id, 'hide_item', "ซ่อนประกาศ ID #{$item_id} ({$item['title']}) {$reason_text}");
+
+                // Email Notification: Notify owner about hidden item
+                if (file_exists(__DIR__ . '/../helpers/email_notification_helper.php')) {
+                    require_once __DIR__ . '/../helpers/email_notification_helper.php';
+                    dispatch_moderation_email($pdo, 'hide_item', $item['user_id'], $item_id, $reason_text);
+                }
+
                 $_SESSION['success'] = "ซ่อนประกาศออกจากระบบเรียบร้อยแล้ว";
             }
         } else {

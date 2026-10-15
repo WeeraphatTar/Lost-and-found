@@ -51,7 +51,7 @@ try {
     }
 
     // 4. ตรวจสอบว่าเคยยื่น Claim บนประกาศนี้ค้างไว้อยู่หรือไม่
-    $claim_check_stmt = $pdo->prepare("SELECT id, status FROM claims WHERE item_id = ? AND claimant_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled') ORDER BY id DESC LIMIT 1");
+    $claim_check_stmt = $pdo->prepare("SELECT id, status FROM claims WHERE item_id = ? AND user_id = ? AND status IN ('pending', 'approved', 'under_admin_review', 'meeting_scheduled') ORDER BY id DESC LIMIT 1");
     $claim_check_stmt->execute([$item_id, $user_id]);
     $existing_claim = $claim_check_stmt->fetch();
 

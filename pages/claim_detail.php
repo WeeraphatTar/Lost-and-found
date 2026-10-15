@@ -1,35 +1,45 @@
 <?php
-require_once '../includes/header.php';
-require_once '../config/database.php';
+ob_start();
 
-if (!isset($_SESSION['user_id'])) {
-    $_SESSION['error'] = "กรุณาเข้าสู่ระบบก่อน";
-    echo "<script>window.location.href = '".$base_url."/pages/login.php';</script>";
-    exit;
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
-$user_id = $_SESSION['user_id'];
+require_once '../config/database.php';
+
+$base_url = 'http://localhost/lost-and-found';
+$user_id = $_SESSION['user_id'] ?? null;
 $user_role = $_SESSION['user_role'] ?? 'user';
 $claim_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-if ($claim_id <= 0) {
-    header("Location: claims.php");
+if (!$user_id) {
+    $_SESSION['error'] = "กรุณาเข้าสู่ระบบก่อน";
+    header("Location: " . $base_url . "/pages/login.php");
     exit;
 }
 
-// ดึงข้อมูล Claim + Item + Users
+if ($claim_id <= 0) {
+    header("Location: " . $base_url . "/pages/claims.php");
+    exit;
+}
+
+// หากผู้ใช้มี role เป็น admin ให้ redirect ไปยังหน้าจัดการคำร้องของ Admin ทันที
+if ($user_role === 'admin') {
+    header("Location: " . $base_url . "/pages/admin/admin_claim_detail.php?id=" . $claim_id);
+    exit;
+}
+
+// ดึงข้อมูล Claim + Item + Users ก่อนแสดงผล HTML
 $sql = "
-    SELECT c.*, 
+    SELECT c.*, c.status AS claim_status, COALESCE(c.description, '') as proof_description,
            i.title as item_title, i.category, i.location, i.storage_location, i.description as item_desc, 
-           i.secret_description, i.serial_number as item_sn, i.image_path as item_image, i.status as item_status, i.user_id as item_owner_id,
+           i.secret_description, i.serial_number as item_sn, i.image_path as item_image, i.status as item_status, i.user_id as item_owner_id, i.user_id as finder_id,
            u_c.first_name as claimant_first, u_c.last_name as claimant_last, u_c.email as claimant_email, u_c.phone as claimant_phone,
-           u_f.first_name as finder_first, u_f.last_name as finder_last, u_f.email as finder_email, u_f.phone as finder_phone,
-           u_a.first_name as admin_first, u_a.last_name as admin_last
+           u_f.first_name as finder_first, u_f.last_name as finder_last, u_f.email as finder_email, u_f.phone as finder_phone
     FROM claims c
     JOIN items i ON c.item_id = i.id
-    JOIN users u_c ON c.claimant_id = u_c.id
-    JOIN users u_f ON c.finder_id = u_f.id
-    LEFT JOIN users u_a ON c.admin_id = u_a.id
+    JOIN users u_c ON c.user_id = u_c.id
+    JOIN users u_f ON i.user_id = u_f.id
     WHERE c.id = ?
 ";
 $stmt = $pdo->prepare($sql);
@@ -38,19 +48,21 @@ $claim = $stmt->fetch();
 
 if (!$claim) {
     $_SESSION['error'] = "ไม่พบคำร้องขอ Claim นี้ในระบบ";
-    echo "<script>window.location.href = '".$base_url."/pages/claims.php';</script>";
+    header("Location: " . $base_url . "/pages/claims.php");
     exit;
 }
 
-$is_claimant = ($claim['claimant_id'] == $user_id);
+$is_claimant = ($claim['user_id'] == $user_id);
 $is_finder = ($claim['finder_id'] == $user_id);
 $is_admin = ($user_role === 'admin');
 
 if (!$is_claimant && !$is_finder && !$is_admin) {
     $_SESSION['error'] = "คุณไม่มีสิทธิ์เข้าดูคำร้องนี้";
-    echo "<script>window.location.href = '".$base_url."/pages/claims.php';</script>";
+    header("Location: " . $base_url . "/pages/claims.php");
     exit;
 }
+
+require_once '../includes/header.php';
 ?>
 
 <?php if ($is_admin): ?>
@@ -73,7 +85,7 @@ if (!$is_claimant && !$is_finder && !$is_admin) {
                     <span>•</span>
                     <a href="<?php echo $base_url; ?>/pages/admin/admin_claims.php" class="hover:text-slate-800">คำร้องขอรับคืน</a>
                     <span>•</span>
-                    <span>รายละเอียดคำร้อง #CLM-<?php echo str_pad($claim['id'], 5, '0', STR_PAD_LEFT); ?></span>
+                    <span>รายละเอียดคำร้อง #CLM-<?php echo str_pad($claim['id'], 3, '0', STR_PAD_LEFT); ?></span>
                 </div>
                 <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     รายละเอียดคำร้องขอรับคืน
@@ -122,36 +134,42 @@ if (!$is_claimant && !$is_finder && !$is_admin) {
             <!-- Header Banner: Clean White Header -->
             <div class="p-5 sm:p-6 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div class="flex flex-wrap items-center">
-                    <span class="bg-indigo-50/80 text-indigo-700 border border-indigo-200/80 font-mono font-semibold text-sm px-3 py-1.5 rounded-lg inline-flex items-center shadow-sm">#CLM-<?php echo str_pad($claim['id'], 5, '0', STR_PAD_LEFT); ?></span>
+                    <span class="bg-indigo-50/80 text-indigo-700 border border-indigo-200/80 font-mono font-semibold text-sm px-3 py-1.5 rounded-lg inline-flex items-center shadow-sm">#CLM-<?php echo str_pad($claim['id'], 3, '0', STR_PAD_LEFT); ?></span>
                     <span class="text-sm text-slate-600 font-medium ml-3">ยื่นคำร้องเมื่อ: <?php echo date('d M Y H:i', strtotime($claim['created_at'])); ?></span>
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <?php if ($claim['status'] === 'pending' || $claim['status'] === 'under_admin_review'): ?>
-                        <span class="inline-flex items-center px-3.5 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold rounded-full gap-2">
-                            <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-                            รอการตรวจสอบ
+                    <?php 
+                        $c_status = $claim['claim_status'] ?? $claim['status'] ?? '';
+                        $i_status = $claim['item_status'] ?? '';
+                    ?>
+                    <?php if ($c_status === 'rejected'): ?>
+                        <span class="inline-flex items-center px-3.5 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-full gap-2">
+                            <span class="w-2 h-2 bg-rose-500 rounded-full"></span>
+                            ปฏิเสธคำร้อง
                         </span>
-                    <?php elseif (in_array($claim['status'], ['approved', 'meeting_scheduled'])): ?>
-                        <span class="inline-flex items-center px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-full gap-2">
-                            <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                            อนุมัติแล้ว
-                        </span>
-                    <?php elseif ($claim['status'] === 'completed'): ?>
-                        <span class="inline-flex items-center px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-full gap-2">
-                            <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                            ส่งมอบสำเร็จ
-                        </span>
-                    <?php elseif ($claim['status'] === 'cancelled_mismatch'): ?>
+                    <?php elseif (in_array($c_status, ['cancelled_mismatch', 'cancelled'])): ?>
                         <span class="inline-flex items-center px-3.5 py-1.5 bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold rounded-full gap-2">
                             <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
                             ยกเลิกคำร้อง
                         </span>
-                    <?php elseif ($claim['status'] === 'rejected'): ?>
-                        <span class="inline-flex items-center px-3.5 py-1.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-full gap-2">
-                            <span class="w-2 h-2 bg-red-500 rounded-full"></span>
-                            ปฏิเสธคำร้อง
+                    <?php elseif (in_array($c_status, ['pending', 'under_admin_review'])): ?>
+                        <span class="inline-flex items-center px-3.5 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold rounded-full gap-2">
+                            <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+                            รอ Admin ตรวจสอบ
                         </span>
+                    <?php else: ?>
+                        <?php if ($i_status === 'resolved' || $i_status === 'closed' || in_array($c_status, ['completed', 'returned'])): ?>
+                            <span class="inline-flex items-center px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-full gap-2">
+                                <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                ส่งมอบสำเร็จ
+                            </span>
+                        <?php else: ?>
+                            <span class="inline-flex items-center px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-full gap-2">
+                                <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                อนุมัติแล้ว
+                            </span>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
@@ -160,7 +178,7 @@ if (!$is_claimant && !$is_finder && !$is_admin) {
             <div class="p-6 sm:p-8 space-y-6">
                 
                 <!-- Notice Banner for Mismatch Cancellation -->
-                <?php if ($claim['status'] === 'cancelled_mismatch'): ?>
+                <?php if ($claim['claim_status'] === 'cancelled_mismatch'): ?>
                     <div class="bg-slate-100 border border-slate-200 rounded-xl p-3.5 flex items-start gap-3 mb-5">
                         <svg class="w-5 h-5 text-slate-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                         <div>
@@ -173,7 +191,7 @@ if (!$is_claimant && !$is_finder && !$is_admin) {
                 <?php endif; ?>
 
                 <!-- Notice Banner for Admin Review -->
-                <?php if ($claim['status'] === 'under_admin_review'): ?>
+                <?php if ($claim['claim_status'] === 'under_admin_review'): ?>
                     <div class="p-4 bg-amber-50/60 border border-amber-200 rounded-xl text-amber-900 flex items-start gap-3">
                         <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                         <div class="text-sm">
@@ -190,7 +208,7 @@ if (!$is_claimant && !$is_finder && !$is_admin) {
                 <?php endif; ?>
 
                 <!-- Notice Banner for Rejected Claim -->
-                <?php if ($claim['status'] === 'rejected'): ?>
+                <?php if ($claim['claim_status'] === 'rejected'): ?>
                     <div class="p-4 bg-red-50 border border-red-200 rounded-xl text-red-900 flex items-start gap-3">
                         <svg class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         <div>
@@ -237,14 +255,19 @@ if (!$is_claimant && !$is_finder && !$is_admin) {
                             </div>
                         </div>
 
-                        <!-- Chat Button (แสดงเมื่อ Admin อนุมัติคำร้องแล้วเท่านั้น) -->
+                        <!-- Chat Button (ตามสถานะคำร้อง) -->
                         <?php if ($is_claimant || $is_finder): ?>
-                            <?php if (in_array($claim['status'], ['approved', 'meeting_scheduled', 'completed'])): ?>
-                                <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $claim['item_id']; ?>&receiver_id=<?php echo $is_finder ? $claim['claimant_id'] : $claim['finder_id']; ?>&ref=claim_detail&claim_id=<?php echo $claim['id']; ?>" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg transition border border-blue-600 shadow-2xs flex items-center gap-1.5 whitespace-nowrap justify-center self-stretch sm:self-auto">
+                            <?php 
+                                $is_case_closed = ($claim['item_status'] === 'resolved' || $claim['item_status'] === 'closed' || in_array($claim['claim_status'], ['completed', 'returned']));
+                                $is_case_approved = (in_array($claim['claim_status'], ['approved', 'meeting_scheduled']) && !$is_case_closed);
+                                $is_case_pending = (in_array($claim['claim_status'], ['pending', 'under_admin_review']) && !$is_case_closed);
+                            ?>
+                            <?php if ($is_case_approved): ?>
+                                <a href="<?php echo $base_url; ?>/pages/chat.php?item_id=<?php echo $claim['item_id']; ?>&receiver_id=<?php echo $is_finder ? $claim['user_id'] : $claim['finder_id']; ?>&ref=claim_detail&claim_id=<?php echo $claim['id']; ?>" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg transition border border-blue-600 shadow-2xs flex items-center gap-1.5 whitespace-nowrap justify-center self-stretch sm:self-auto">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
                                     แชทสนทนา
                                 </a>
-                            <?php else: ?>
+                            <?php elseif ($is_case_pending): ?>
                                 <div class="flex flex-col items-center gap-1 self-stretch sm:self-auto">
                                     <button type="button" disabled title="ต้องได้รับการอนุมัติคำร้องจาก Admin ก่อน จึงจะแชทสนทนาได้" class="w-full px-4 py-2.5 bg-slate-100 text-slate-400 font-semibold text-xs rounded-lg border border-slate-200 cursor-not-allowed flex items-center justify-center gap-1.5 whitespace-nowrap opacity-80">
                                         <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
@@ -268,7 +291,7 @@ if (!$is_claimant && !$is_finder && !$is_admin) {
                         <div class="space-y-1">
                             <span class="text-gray-400 font-medium block">ผู้พบของ:</span>
                             <div class="font-semibold text-gray-800 text-sm"><?php echo htmlspecialchars($claim['finder_first'] . ' ' . $claim['finder_last']); ?></div>
-                            <?php if (in_array($claim['status'], ['approved', 'meeting_scheduled', 'completed']) && !empty($claim['finder_phone'])): ?>
+                            <?php if (in_array($claim['claim_status'], ['approved', 'meeting_scheduled', 'completed']) && !empty($claim['finder_phone'])): ?>
                                 <div class="text-xs text-gray-600">โทร: <span class="font-medium text-gray-800"><?php echo htmlspecialchars($claim['finder_phone']); ?></span></div>
                             <?php endif; ?>
                         </div>
@@ -293,7 +316,7 @@ if (!$is_claimant && !$is_finder && !$is_admin) {
                 </div>
 
                 <!-- Section: Storage Location & Timeline Stepper (แสดงเมื่ออนุมัติแล้ว) -->
-                <?php if (in_array($claim['status'], ['approved', 'meeting_scheduled'])): ?>
+                <?php if (in_array($claim['claim_status'], ['approved', 'meeting_scheduled'])): ?>
                     <?php 
                         $approved_date_str = !empty($claim['admin_action_at']) 
                             ? date('j M Y', strtotime($claim['admin_action_at'])) 
@@ -568,21 +591,44 @@ function handleCancelSubmit(form) {
 function handleAdminDecisionSubmit(form, e) {
     const notesInput = form.querySelector('[name="admin_notes"]');
     const notesValue = notesInput ? notesInput.value.trim() : '';
-    const decision = form.querySelector('[name="decision"]') ? form.querySelector('[name="decision"]').value : '';
+    const decisionInput = form.querySelector('[name="decision"]');
+    const decision = decisionInput ? decisionInput.value : '';
+
+    const resetButtons = () => {
+        const submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+        submitButtons.forEach(function(btn) {
+            btn.dataset.submitting = 'false';
+            btn.style.opacity = '';
+            btn.style.pointerEvents = '';
+            btn.disabled = false;
+        });
+    };
 
     if (!notesValue) {
         alert('กรุณากรอกบันทึกเหตุผลก่อนดำเนินการอนุมัติหรือปฏิเสธ');
         if (notesInput) {
             notesInput.focus();
         }
+        if (e && e.preventDefault) e.preventDefault();
+        resetButtons();
         return false;
     }
 
+    let isConfirmed = false;
     if (decision === 'approve') {
-        return confirm('ยืนยันอนุมัติคำร้องนี้ใช่หรือไม่? ระบบจะทำการปฏิเสธคำร้องอื่นๆ ของสิ่งของชิ้นนี้ให้อัตโนมัติ');
+        isConfirmed = confirm('ยืนยันอนุมัติคำร้องนี้ใช่หรือไม่? ระบบจะทำการปฏิเสธคำร้องอื่นๆ ของสิ่งของชิ้นนี้ให้อัตโนมัติ');
     } else if (decision === 'reject') {
-        return confirm('ยืนยันปฏิเสธคำร้องนี้ใช่หรือไม่?');
+        isConfirmed = confirm('ยืนยันปฏิเสธคำร้องนี้ใช่หรือไม่?');
+    } else {
+        isConfirmed = true;
     }
+
+    if (!isConfirmed) {
+        if (e && e.preventDefault) e.preventDefault();
+        resetButtons();
+        return false;
+    }
+
     return true;
 }
 </script>

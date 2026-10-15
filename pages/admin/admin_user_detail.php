@@ -22,7 +22,7 @@ $stmt = $pdo->prepare("
     SELECT u.*, 
            (SELECT COUNT(*) FROM items WHERE user_id = u.id AND type = 'lost') as lost_count,
            (SELECT COUNT(*) FROM items WHERE user_id = u.id AND type = 'found') as found_count,
-           (SELECT COUNT(*) FROM claims WHERE claimant_id = u.id) as claim_count
+           (SELECT COUNT(*) FROM claims WHERE user_id = u.id) as claim_count
     FROM users u 
     WHERE u.id = ?
 ");
@@ -65,7 +65,7 @@ if ($tab === 'claims') {
     $claims_sql = "SELECT c.*, i.title as item_title, i.image_path as item_image, i.type as item_type, i.status as item_status
                    FROM claims c
                    JOIN items i ON c.item_id = i.id
-                   WHERE c.claimant_id = ?
+                   WHERE c.user_id = ?
                    ORDER BY c.created_at DESC";
     $stmt_claims = $pdo->prepare($claims_sql);
     $stmt_claims->execute([$target_user_id]);
@@ -294,7 +294,7 @@ $is_banned = !empty($target_user['is_banned']);
                                     </div>
                                     <div>
                                         <div class="flex items-center gap-2 mb-1">
-                                            <span class="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/80">#CLM-<?php echo str_pad($claim['id'], 5, '0', STR_PAD_LEFT); ?></span>
+                                            <span class="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/80">#CLM-<?php echo str_pad($claim['id'], 3, '0', STR_PAD_LEFT); ?></span>
                                             <span class="text-xs text-slate-400">• ยื่นเมื่อ: <?php echo date('d M Y H:i', strtotime($claim['created_at'])); ?></span>
                                         </div>
                                         <h4 class="font-bold text-slate-900 text-sm leading-tight">

@@ -5,8 +5,25 @@ require_once '../config/database.php';
 
 // Get query parameters
 $q = isset($_GET['q']) ? trim($_GET['q']) : '';
-$status_filter = isset($_GET['status']) ? (array)$_GET['status'] : ['lost', 'found'];
-$category_filter = isset($_GET['category']) ? (array)$_GET['category'] : [];
+
+// Status filter: handle both array status[] and string status
+if (isset($_GET['status'])) {
+    $status_filter = is_array($_GET['status']) ? $_GET['status'] : [$_GET['status']];
+} else {
+    $status_filter = ['lost', 'found'];
+}
+
+// Category filter: handle both array category[] and string category (e.g. from index.php)
+if (isset($_GET['category'])) {
+    $raw_category = is_array($_GET['category']) ? $_GET['category'] : [$_GET['category']];
+    // Filter out empty strings
+    $category_filter = array_values(array_filter($raw_category, function($c) {
+        return trim($c) !== '';
+    }));
+} else {
+    $category_filter = [];
+}
+
 $province_filter = isset($_GET['province']) ? trim($_GET['province']) : '';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : 'latest';
 
@@ -179,11 +196,16 @@ try {
                 </button>
             </div>
             
-            <form id="filter-form" action="" method="GET" class="space-y-6 hidden md:block">
+            <form id="filter-form" action="browse.php" method="GET" class="space-y-6 hidden md:block">
                 <!-- Search Keyword -->
                 <div>
                     <h3 class="font-semibold text-primary mb-2">คำค้นหา</h3>
-                    <input type="text" name="q" value="<?php echo htmlspecialchars($q); ?>" placeholder="พิมพ์คำค้นหา..." class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm">
+                    <div class="relative">
+                        <input type="text" name="q" value="<?php echo htmlspecialchars($q); ?>" placeholder="พิมพ์คำค้นหา..." class="w-full pl-3 pr-10 py-2 border border-gray-300 rounded focus:outline-none focus:border-accent text-sm">
+                        <button type="submit" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition p-1" title="ค้นหา">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Status Filter -->
@@ -239,8 +261,13 @@ try {
                     </datalist>
                 </div>
 
-                <div class="pt-2">
-                    <a href="browse.php" class="block w-full py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded hover:bg-gray-200 transition text-center border border-gray-200">ล้างค่าตัวกรองทั้งหมด</a>
+                <div class="pt-2 space-y-2">
+                    <button type="submit" class="w-full py-2 bg-primary text-white text-sm font-medium rounded hover:bg-secondary transition text-center shadow-xs">
+                        ค้นหา
+                    </button>
+                    <a href="browse.php" class="block w-full py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded hover:bg-gray-200 transition text-center border border-gray-200">
+                        ล้างค่าตัวกรองทั้งหมด
+                    </a>
                 </div>
             </form>
         </aside>
